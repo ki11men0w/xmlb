@@ -5,35 +5,32 @@ import System.Console.GetOpt
 import System.Exit
 import Data.Maybe ( fromMaybe )
 import System.IO
+import System.IO.Error
+import Data.List
 
 version = "2.0"
 
 data Flag = Backup | Encoding String| Quiet | Help | Version
           deriving (Show, Eq)
 
-data ExitReason = Success | ShowHelpOrVersion | UnknownEncoding | UnknownError
+type FileName = Maybe FilePath
 
-exitFor Success           = exitWith $ ExitSuccess
-exitFor ShowHelpOrVersion = exitWith $ ExitSuccess
-exitFor UnknownEncoding   = exitWith $ ExitFailure (-2)
-exitFor UnknownError      = exitWith $ ExitFailure (-1)
-
-getOptions :: IO [Flag]
+getOptions :: IO ([Flag], FileName)
 getOptions =
   do argv <- getArgs
      prog <- getProgName
-     opts <- parseOptions argv prog
+     (opts, inFileName) <- parseOptions argv prog
      
      if Help `elem` opts
        then do let usi = usageInfo (header prog) options
                putStrLn usi
-               exitFor ShowHelpOrVersion
+               exitWith ExitSuccess
        else if Version `elem` opts
               then do putStrLn (prog ++ " version " ++ version)
-                      exitFor ShowHelpOrVersion
+                      exitWith ExitSuccess
               else return ()
      
-     return opts
+     return (opts, inFileName)
      
   where
     options = [
@@ -49,21 +46,27 @@ getOptions =
       "       " ++ progName ++ " OPTIONS < somefile.xml > somefile.xml"
     parseOptions argv prog = do
            case getOpt Permute options argv of
-             (opt,[],[]) -> return (opt)
-             (_,_,errs@(x:xs))  -> ioError (error ((concat errs) ++ "\n" ++ (usageInfo (header prog) options)))
-             (_,tail,[]) -> ioError ( error ("unknown extra parameters: " ++ (concat tail) ++ "\n" ++ usageInfo (header prog) options))
+             (opt,[],[]) -> return (opt, Nothing)
+             (opt,x@(inFileName:[]),[]) -> return (opt, Just inFileName)
+             (_,extra,errs) -> error $ "unexpected extra arguments: " ++ (concat $ intersperse " " (tail extra)) ++ "\n" ++
+                                       (if null errs then "" else (concat $ intersperse "\n" errs) ++ "\n") ++
+                                       usageInfo (header prog) options
 
+
+copyFile inH outH = do
+  x <- hGetContents inH
+  hPutStr outH x
+  
 
 main = do
-  catch (
-    do opts <- getOptions
-       print ">>>>>>>>>>"
-       print opts
-       print "<<<<<<<<<<"
-       exitFor Success
-    )
-    errorHangler
-   where
-     errorHangler err = do hPutStrLn stderr (show err)
-                           exitFor UnknownError
-                          
+  (opts, inFileName) <- getOptions
+  inFileH <- case inFileName of
+                  Nothing -> return stdin
+                  Just fn -> openFile fn ReadMode
+      
+  hSetBinaryMode inFileH True
+  hSetBinaryMode stdout True
+  
+  copyFile inFileH stdout
+       
+       
