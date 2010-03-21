@@ -7,6 +7,10 @@ import Data.Maybe ( fromMaybe )
 import System.IO
 import System.IO.Error
 import Data.List
+--import Text.XML.HaXml.Pretty
+import Text.XML.HaXml.SAX
+--import Text.XML.HaXml.Types
+--import Text.XML.HaXml.XmlContent.Parser
 
 version = "2.0"
 
@@ -53,9 +57,32 @@ getOptions =
                                        usageInfo (header prog) options
 
 
+
+
 copyFile inH outH = do
   x <- hGetContents inH
   hPutStr outH x
+  
+
+parseDoc inH outH = do
+  x <- hGetContents inH
+  hPutStr outH $ parseDoc' x saveFunc
+    where
+      saveFunc :: String -> IO ()
+      saveFunc = do hPutStr outH
+    
+parseDoc' src saveF =
+  let (elems, xs) = saxParse "xxx.xml" src
+  in
+    printElems elems
+    --parseDoc' xs saveF
+    where
+      printElems ((SaxComment a):xs) = do
+        saveF a
+        x <- printElems xs
+        return x
+          
+       
   
 
 main = do
