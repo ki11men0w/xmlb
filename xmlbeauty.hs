@@ -11,6 +11,8 @@ import Data.List
 import Text.XML.HaXml.SAX
 --import Text.XML.HaXml.Types
 --import Text.XML.HaXml.XmlContent.Parser
+import Control.Monad.Trans
+import Control.Monad
 
 version = "2.0"
 
@@ -58,32 +60,119 @@ getOptions =
 
 
 
+type ParseState = Int
+
 
 copyFile inH outH = do
   x <- hGetContents inH
   hPutStr outH x
   
 
+parseDoc :: Handle -> Handle -> IO ()
 parseDoc inH outH = do
   x <- hGetContents inH
-  hPutStr outH $ parseDoc' x saveFunc
+  parseDoc' x saveFunc
     where
       saveFunc :: String -> IO ()
-      saveFunc = do hPutStr outH
+      saveFunc = hPutStr outH
     
+parseDoc' :: String -> (String -> IO ()) -> IO ()
 parseDoc' src saveF =
   let (elems, xs) = saxParse "xxx.xml" src
   in
-    printElems elems
-    --parseDoc' xs saveF
+    printElems elems 0
     where
-      printElems ((SaxComment a):xs) = do
-        saveF a
-        x <- printElems xs
-        return x
-          
+      printElems [] _ = return ()
+      printElems (x:xs) state = do st <- printElem x state
+                                   printElems xs st
+                                   return ()
+        where
+          printElem :: SaxElement -> Int -> IO Int
+          printElem (SaxProcessingInstruction (target, value)) st = do
+            saveF $ "<?" ++ target ++ " " ++ value ++ "?>\n"
+            return st
+          printElem (SaxElementOpen name attrs) st = do
+            saveF $ "<" ++ name ++ ">"
+            return st
+          printElem (SaxElementClose name) st = do
+            saveF $ "</" ++ name ++ ">"
+            return st
+          printElem (SaxElementTag name attrs) st = do
+            saveF $ "<" ++ name ++ "/>"
+            return st
+          printElem (SaxCharData s) st = do
+            saveF $ s
+            return st
+          printElem (SaxComment a) st = do
+            saveF $ "<!--" ++ a ++ "-->"
+            return st
+          printElem _ st =
+            return st
+
+
+
+
+newtype IdentIO a = IdentIO { runWithIdent :: Int -> IO (Int, a) } 
+instance Monad IdentIO where
+  return a            = IdentIO $ \i -> return (i, a)
+  (IdentIO r) >>= f   = IdentIO r'
+                        where r' i = do (i', a) <- r i
+                                        runWithIdent (f a) i'
+                                        
+justIO    action = IdentIO $ \i -> do action; return (i, ())
+identMore        = IdentIO $ \i -> return (i + 1, ())
+identLess        = IdentIO $ \i -> return (i - 1, ())
+getIdent         = IdentIO $ \i -> return (i, i)
+printIdent s     = do i <- getIdent
+                      justIO $ putStr $ replicate i '\t' ++ s
+                      
+
+walk :: (Monad m) => (SaxElement -> m a) -> [SaxElement] -> m ()
+walk f [] = return () 
+walk f (x:xs) = do 
+  f x
+  walk f xs
+  return ()
        
+
+showElement :: SaxElement -> String
+showElement (SaxProcessingInstruction (target, value)) =  "<?" ++ target ++ " " ++ value ++ "?>\n"
+showElement (SaxElementOpen name attrs)                =  "<"  ++ name ++ ">"
+showElement (SaxElementClose name)                     =  "</" ++ name ++ ">\n"
+showElement (SaxElementTag name attrs)                 =  "<"  ++ name ++ "/>\n"
+showElement (SaxCharData s)                            =  s
+showElement (SaxComment a)                             =  "<!--" ++ a ++ "-->\n"
+showElement _                                          =  []
+
   
+printTree = walk p
+  where 
+    p x@(SaxElementOpen _ _)  = do printIdent (showElement x)
+                                   identMore
+    p x@(SaxElementClose _ )  = do printIdent (showElement x)
+                                   identLess
+    p x                       = do printIdent (showElement x)
+          
+
+
+--instance MonadTrans IdentIO where
+--  lift = IdentIO . (liftM ())
+
+--parseDoc2 :: Handle -> Handle -> IO ()
+parseDoc2 inH outH = do
+  x <- hGetContents inH
+  parseDoc2' x
+  return ()
+    where
+      parseDoc2' :: String -> IO ()
+      parseDoc2' inpt = do
+        let (elems, xxx) = saxParse "xxx.xml" inpt
+        printTree elems
+        return ()
+          where
+            --saveFunc :: String -> IO ()
+            saveFunc = hPutStr outH
+
 
 main = do
   (opts, inFileName) <- getOptions
@@ -94,6 +183,7 @@ main = do
   hSetBinaryMode inFileH True
   hSetBinaryMode stdout True
   
-  copyFile inFileH stdout
+  parseDoc2 inFileH stdout
+  return ()
        
        
