@@ -14,6 +14,9 @@ import Text.XML.HaXml.SAX
 import Control.Monad.Trans
 import Control.Monad
 
+import Data.Char
+import Data.Maybe
+
 version = "2.0"
 
 data Flag = Backup | Encoding String| Quiet | Help | Version
@@ -112,13 +115,28 @@ parseDoc' src saveF =
 
 
 
+
 newtype IdentIO a = IdentIO { runWithIdent :: Int -> IO (Int, a) } 
 instance Monad IdentIO where
   return a            = IdentIO $ \i -> return (i, a)
-  (IdentIO r) >>= f   = IdentIO r'
-                        where r' i = do (i', a) <- r i
-                                        runWithIdent (f a) i'
+  (IdentIO r) >>= f   = IdentIO $ \i -> do (i', a) <- r i
+                                           runWithIdent (f a) i'
                                         
+
+newtype (Monad m) => IdentIO_T m a = IdentIO_T { runIdentIO_T :: m (IdentIO a)}
+instance Monad m => Monad (IdentIO_T m)  where
+  return   = IdentIO_T . return . return
+  x >>= f  = IdentIO_T $ do (IdentIO r) <- runIdentIO_T x
+                            return $ IdentIO $ \i -> do (i', a) <- r i
+                                                        x <- runIdentIO_T (f a)
+                                                        runWithIdent x i'
+
+                            
+-- instance MonadTrans IdentIO where
+--   lift = IdentIO_T . (liftM Just)
+
+
+setIdent   new_i = IdentIO $ \i -> return (new_i, ())
 justIO    action = IdentIO $ \i -> do action; return (i, ())
 identMore        = IdentIO $ \i -> return (i + 1, ())
 identLess        = IdentIO $ \i -> return (i - 1, ())
@@ -144,9 +162,11 @@ showElement (SaxCharData s)                            =  s
 showElement (SaxComment a)                             =  "<!--" ++ a ++ "-->\n"
 showElement _                                          =  []
 
-  
-printTree = walk p
+printTree :: [SaxElement] -> IdentIO ()  
+printTree = do walk p
   where 
+    p x@(SaxProcessingInstruction ("xml", _)) = do setIdent 0
+                                                   printIdent (showElement x)
     p x@(SaxElementOpen _ _)  = do printIdent (showElement x)
                                    identMore
     p x@(SaxElementClose _ )  = do printIdent (showElement x)
@@ -154,9 +174,6 @@ printTree = walk p
     p x                       = do printIdent (showElement x)
           
 
-
---instance MonadTrans IdentIO where
---  lift = IdentIO . (liftM ())
 
 --parseDoc2 :: Handle -> Handle -> IO ()
 parseDoc2 inH outH = do
@@ -167,11 +184,31 @@ parseDoc2 inH outH = do
       parseDoc2' :: String -> IO ()
       parseDoc2' inpt = do
         let (elems, xxx) = saxParse "xxx.xml" inpt
-        printTree elems
+        --sequence $ [printTree elems]
         return ()
           where
             --saveFunc :: String -> IO ()
             saveFunc = hPutStr outH
+
+
+
+getPassword :: IO (Maybe String)
+getPassword = do s <- getLine
+                 if isValid s
+                   then return $ Just s
+                   else return Nothing
+                        
+isValid :: String -> Bool
+isValid s = length s >= 8 && any isAlpha s && any isNumber s && any isPunctuation s
+
+
+askPassword :: IO ()
+askPassword = do putStrLn "Enter password: "
+                 x <- getPassword
+                 if isJust x
+                   then putStrLn "Ok"
+                   else return ()
+
 
 
 main = do
@@ -184,6 +221,8 @@ main = do
   hSetBinaryMode stdout True
   
   parseDoc2 inFileH stdout
+  --Just x <- getPassword
+  --putStr x
   return ()
        
        
