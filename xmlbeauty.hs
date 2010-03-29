@@ -9,15 +9,17 @@ import System.IO.Error
 import Data.List
 --import Text.XML.HaXml.Pretty
 import Text.XML.HaXml.SAX
---import Text.XML.HaXml.Types
+import Text.XML.HaXml.Types
+import Text.XML.HaXml.Escape
 --import Text.XML.HaXml.XmlContent.Parser
 import Control.Monad.Trans
 import Control.Monad
+import Control.Monad.State
 
 import Data.Char
 import Data.Maybe
 
-version = "2.0"
+version = "2.0 (haskell)"
 
 data Flag = Backup | Encoding String| Quiet | Help | Version
           deriving (Show, Eq)
@@ -63,153 +65,166 @@ getOptions =
 
 
 
-type ParseState = Int
-
-
-copyFile inH outH = do
-  x <- hGetContents inH
-  hPutStr outH x
-  
 
 parseDoc :: Handle -> Handle -> IO ()
 parseDoc inH outH = do
   x <- hGetContents inH
-  parseDoc' x saveFunc
-    where
-      saveFunc :: String -> IO ()
-      saveFunc = hPutStr outH
-    
-parseDoc' :: String -> (String -> IO ()) -> IO ()
-parseDoc' src saveF =
-  let (elems, xs) = saxParse "xxx.xml" src
-  in
-    printElems elems 0
-    where
-      printElems [] _ = return ()
-      printElems (x:xs) state = do st <- printElem x state
-                                   printElems xs st
-                                   return ()
-        where
-          printElem :: SaxElement -> Int -> IO Int
-          printElem (SaxProcessingInstruction (target, value)) st = do
-            saveF $ "<?" ++ target ++ " " ++ value ++ "?>\n"
-            return st
-          printElem (SaxElementOpen name attrs) st = do
-            saveF $ "<" ++ name ++ ">"
-            return st
-          printElem (SaxElementClose name) st = do
-            saveF $ "</" ++ name ++ ">"
-            return st
-          printElem (SaxElementTag name attrs) st = do
-            saveF $ "<" ++ name ++ "/>"
-            return st
-          printElem (SaxCharData s) st = do
-            saveF $ s
-            return st
-          printElem (SaxComment a) st = do
-            saveF $ "<!--" ++ a ++ "-->"
-            return st
-          printElem _ st =
-            return st
-
-
-
-
-
-newtype IdentIO a = IdentIO { runWithIdent :: Int -> IO (Int, a) } 
-instance Monad IdentIO where
-  return a            = IdentIO $ \i -> return (i, a)
-  (IdentIO r) >>= f   = IdentIO $ \i -> do (i', a) <- r i
-                                           runWithIdent (f a) i'
-                                        
-
-newtype (Monad m) => IdentIO_T m a = IdentIO_T { runIdentIO_T :: m (IdentIO a)}
-instance Monad m => Monad (IdentIO_T m)  where
-  return   = IdentIO_T . return . return
-  x >>= f  = IdentIO_T $ do (IdentIO r) <- runIdentIO_T x
-                            return $ IdentIO $ \i -> do (i', a) <- r i
-                                                        x <- runIdentIO_T (f a)
-                                                        runWithIdent x i'
-
-                            
--- instance MonadTrans IdentIO where
---   lift = IdentIO_T . (liftM Just)
-
-
-setIdent   new_i = IdentIO $ \i -> return (new_i, ())
-justIO    action = IdentIO $ \i -> do action; return (i, ())
-identMore        = IdentIO $ \i -> return (i + 1, ())
-identLess        = IdentIO $ \i -> return (i - 1, ())
-getIdent         = IdentIO $ \i -> return (i, i)
-printIdent s     = do i <- getIdent
-                      justIO $ putStr $ replicate i '\t' ++ s
-                      
-
-walk :: (Monad m) => (SaxElement -> m a) -> [SaxElement] -> m ()
-walk f [] = return () 
-walk f (x:xs) = do 
-  f x
-  walk f xs
-  return ()
-       
-
-showElement :: SaxElement -> String
-showElement (SaxProcessingInstruction (target, value)) =  "<?" ++ target ++ " " ++ value ++ "?>\n"
-showElement (SaxElementOpen name attrs)                =  "<"  ++ name ++ ">"
-showElement (SaxElementClose name)                     =  "</" ++ name ++ ">\n"
-showElement (SaxElementTag name attrs)                 =  "<"  ++ name ++ "/>\n"
-showElement (SaxCharData s)                            =  s
-showElement (SaxComment a)                             =  "<!--" ++ a ++ "-->\n"
-showElement _                                          =  []
-
-printTree :: [SaxElement] -> IdentIO ()  
-printTree = do walk p
-  where 
-    p x@(SaxProcessingInstruction ("xml", _)) = do setIdent 0
-                                                   printIdent (showElement x)
-    p x@(SaxElementOpen _ _)  = do printIdent (showElement x)
-                                   identMore
-    p x@(SaxElementClose _ )  = do printIdent (showElement x)
-                                   identLess
-    p x                       = do printIdent (showElement x)
-          
-
-
---parseDoc2 :: Handle -> Handle -> IO ()
-parseDoc2 inH outH = do
-  x <- hGetContents inH
-  parseDoc2' x
+  parseDoc' x
   return ()
     where
-      parseDoc2' :: String -> IO ()
-      parseDoc2' inpt = do
-        let (elems, xxx) = saxParse "xxx.xml" inpt
-        --sequence $ [printTree elems]
+      parseDoc' :: String -> IO ()
+      parseDoc' inpt = do
+        let (elms, xxx) = saxParse "unknown.xml" inpt
+        runStateT printTree2 (SaxState {ident=0, elems=elms, lastElem = LastElemNothing, saveFunc = saveFunc})
         return ()
           where
-            --saveFunc :: String -> IO ()
+            saveFunc :: String -> IO ()
             saveFunc = hPutStr outH
 
 
 
-getPassword :: IO (Maybe String)
-getPassword = do s <- getLine
-                 if isValid s
-                   then return $ Just s
-                   else return Nothing
-                        
-isValid :: String -> Bool
-isValid s = length s >= 8 && any isAlpha s && any isNumber s && any isPunctuation s
+
+showElement :: SaxElement -> String
+showElement (SaxProcessingInstruction (target, value)) =  "<?" ++ target ++ " " ++ value ++ "?>"
+showElement (SaxElementOpen name attrs)                =  "<"  ++ name ++ showAttributes attrs ++ ">"
+showElement (SaxElementClose name)                     =  "</" ++ name ++ ">"
+showElement (SaxElementTag name attrs)                 =  "<"  ++ name ++ showAttributes attrs ++ "/>"
+showElement (SaxCharData s)                            =  s
+showElement (SaxComment a)                             =  "<!--" ++ a ++ "-->"
+showElement _                                          =  []
+
+showAttributes :: [Attribute] -> String
+showAttributes [] = []
+showAttributes attrs =
+  " " ++ (concat $ intersperse " " (showAttributes' attrs))
+  where
+    showAttributes' :: [Attribute] -> [String]
+    showAttributes' [] = []
+    showAttributes' (a:as) = ((showAttr a):showAttributes' as)
+      where
+        showAttr :: Attribute -> String
+        showAttr (name, AttValue attrvs) = name ++ "=\"" ++ showAttrValues attrvs ++ "\""
+          where
+            showAttrValues :: [Either String Reference] -> String
+            showAttrValues [] = []
+            showAttrValues ((Left value):vs) = value ++ showAttrValues vs
+            showAttrValues ((Right value):vs) =
+              case value of
+                RefEntity name -> "&" ++ name ++ ";"
+                RefChar   c    -> "&#" ++ show c ++ ";"
+              ++ showAttrValues vs
+  
+
+data LastElem = LastElemNothing | LastElemOpenTag | LastElemCloseTag | LastElemChars | LastElemComment
+data SaxState = SaxState { ident :: Int,
+                           elems :: [SaxElement],
+                           lastElem :: LastElem,
+                           saveFunc :: String -> IO ()
+                         }
+
+setIdent :: Int -> StateT SaxState IO ()
+setIdent x = do
+  z <- get
+  put $ z { ident = x }
+
+getIdent :: StateT SaxState IO Int
+getIdent = do
+  x <- get
+  return $ ident x
+  
+identMore :: StateT SaxState IO ()
+identMore = do
+  x <- get
+  put $ x { ident = (ident x) +1 }
+
+identLess :: StateT SaxState IO ()
+identLess = do
+  x <- get
+  put $ x { ident = (ident x) -1 }
+  
+justIO :: IO () -> StateT SaxState IO ()
+justIO action = do liftIO action
+
+print' :: String -> StateT SaxState IO ()
+print' s = do st <- get
+              justIO $ (saveFunc st) s
+
+printIdent :: String -> StateT SaxState IO ()
+printIdent s = do i <- getIdent
+                  print' $ replicate i '\t' ++ s
+
+popElem :: StateT SaxState IO (Maybe SaxElement)
+popElem = do
+  x <- get
+  case elems x of
+    []     -> return Nothing
+    (h:hs) -> do put x { elems = hs }
+                 return $ Just h
+                 
+setLastElem :: LastElem -> StateT SaxState IO ()
+setLastElem le = do
+  st <- get
+  put $ st {lastElem = le}
+
+xmlEscape' :: String -> String
+xmlEscape' s = s
+
+printElem :: SaxElement -> StateT SaxState IO ()
+printElem e = do
+  st <- get
+  case e of
+    x@(SaxProcessingInstruction ("xml", _)) -> do case lastElem st of
+                                                    LastElemNothing  -> return ()
+                                                    _                -> print' "\n"
+                                                  
+                                                  printIdent $ showElement x
+                                                  print' "\n"
+      
+    x@(SaxElementOpen _ _)  -> do print' "\n"
+                                  printIdent (showElement x) 
+                                  identMore
+                                  setLastElem LastElemOpenTag
+                                  
+    x@(SaxElementClose _ )  -> do identLess
+                                  case lastElem st of
+                                    LastElemChars   -> return ()
+                                    LastElemOpenTag -> return ()
+                                    _               -> do print' "\n"
+                                                          printIdent ""
+                                  print' $ showElement x
+                                  setLastElem LastElemCloseTag
+    
+    x@(SaxCharData s)       -> do if (all isSpace s) && lastElemIsNotChar
+                                    then return ()
+                                    else do print' $ xmlEscape' s
+                                            setLastElem LastElemChars
+                                    where 
+                                      lastElemIsNotChar = case lastElem st of
+                                        LastElemChars -> False
+                                        _             -> True
+                                            
+    x@(SaxElementTag _ _)   -> do print' "\n"
+                                  printIdent (showElement x) 
+                                  setLastElem LastElemCloseTag
+                                  
+    x@(SaxComment s)        -> do print' "\n"
+                                  printIdent (showElement x)
+                                  print' "\n"
+                                  setLastElem LastElemComment
+                                  
+    x                       -> do print' $ showElement x
+        
 
 
-askPassword :: IO ()
-askPassword = do putStrLn "Enter password: "
-                 x <- getPassword
-                 if isJust x
-                   then putStrLn "Ok"
-                   else return ()
-
-
+printTree2 :: StateT SaxState IO ()
+printTree2  = do
+  x <- popElem
+  case x of
+    Nothing -> return ()
+    Just e  -> do printElem e
+                  printTree2
+      
+  
 
 main = do
   (opts, inFileName) <- getOptions
@@ -220,9 +235,8 @@ main = do
   hSetBinaryMode inFileH True
   hSetBinaryMode stdout True
   
-  parseDoc2 inFileH stdout
-  --Just x <- getPassword
-  --putStr x
+  parseDoc inFileH stdout
+
   return ()
        
        
