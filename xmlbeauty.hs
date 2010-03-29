@@ -5,15 +5,15 @@ import System.Console.GetOpt
 import System.Exit
 import Data.Maybe ( fromMaybe )
 import System.IO
-import System.IO.Error
+--import System.IO.Error
 import Data.List
 --import Text.XML.HaXml.Pretty
 import Text.XML.HaXml.SAX
 import Text.XML.HaXml.Types
 import Text.XML.HaXml.Escape
 --import Text.XML.HaXml.XmlContent.Parser
-import Control.Monad.Trans
-import Control.Monad
+--import Control.Monad.Trans
+--import Control.Monad
 import Control.Monad.State
 
 import Data.Char
@@ -21,6 +21,7 @@ import Data.Maybe
 
 version = "2.0 (haskell)"
 
+-- | Флаги коммандной строки
 data Flag = Backup | Encoding String| Quiet | Help | Version
           deriving (Show, Eq)
 
@@ -75,7 +76,7 @@ parseDoc inH outH = do
       parseDoc' :: String -> IO ()
       parseDoc' inpt = do
         let (elms, xxx) = saxParse "unknown.xml" inpt
-        runStateT printTree2 (SaxState {ident=0, elems=elms, lastElem = LastElemNothing, saveFunc = saveFunc})
+        runStateT printTree (SaxState {ident=0, elems=elms, lastElem = LastElemNothing, saveFunc = saveFunc})
         return ()
           where
             saveFunc :: String -> IO ()
@@ -200,8 +201,8 @@ printElem e = do
                                             setLastElem LastElemChars
                                     where 
                                       lastElemIsNotChar = case lastElem st of
-                                        LastElemChars -> False
-                                        _             -> True
+                                                            LastElemChars -> False
+                                                            _             -> True
                                             
     x@(SaxElementTag _ _)   -> do print' "\n"
                                   printIdent (showElement x) 
@@ -216,13 +217,13 @@ printElem e = do
         
 
 
-printTree2 :: StateT SaxState IO ()
-printTree2  = do
+printTree  :: StateT SaxState IO ()
+printTree  = do
   x <- popElem
   case x of
     Nothing -> return ()
     Just e  -> do printElem e
-                  printTree2
+                  printTree
       
   
 
