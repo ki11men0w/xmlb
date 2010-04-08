@@ -92,6 +92,9 @@ showElement (SaxElementClose name)                     =  "</" ++ name ++ ">"
 showElement (SaxElementTag name attrs)                 =  "<"  ++ name ++ showAttributes attrs ++ "/>"
 showElement (SaxCharData s)                            =  s
 showElement (SaxComment a)                             =  "<!--" ++ a ++ "-->"
+showElement (SaxReference r)                           = case r of
+                                                           RefEntity name -> "&" ++ name ++ ";"
+                                                           RefChar   c    -> "&#" ++ show c ++ ";"
 showElement _                                          =  []
 
 showAttributes :: [Attribute] -> String
@@ -212,7 +215,8 @@ printElem e = do
                                   printIdent (showElement x)
                                   print' "\n"
                                   setLastElem LastElemComment
-                                  
+    x@(SaxReference r)      -> do print' $ showElement x
+                                  setLastElem LastElemChars
     x                       -> do print' $ showElement x
         
 
@@ -221,7 +225,13 @@ printTree  :: StateT SaxState IO ()
 printTree  = do
   x <- popElem
   case x of
-    Nothing -> return ()
+    Nothing -> do st <- get
+                  case lastElem st of
+                    LastElemCloseTag -> lastNewLine
+                    LastElemComment  -> lastNewLine
+                    _                -> return ()
+                    where lastNewLine = print' "\n"
+                  
     Just e  -> do printElem e
                   printTree
       
