@@ -25,9 +25,8 @@ version = "2.0 (haskell)"
 data Flag = Backup | Encoding String| Quiet | Help | Version
           deriving (Show, Eq)
 
-type FileName = Maybe FilePath
 
-getOptions :: IO ([Flag], FileName)
+getOptions :: IO ([Flag], Maybe FilePath)
 getOptions =
   do argv <- getArgs
      prog <- getProgName
@@ -95,7 +94,7 @@ showElement (SaxComment a)                             =  "<!--" ++ a ++ "-->"
 showElement (SaxReference r)                           = case r of
                                                            RefEntity name -> "&" ++ name ++ ";"
                                                            RefChar   c    -> "&#" ++ show c ++ ";"
-showElement _                                          =  []
+showElement _                                          =  ""
 
 showAttributes :: [Attribute] -> String
 showAttributes [] = []
@@ -237,6 +236,7 @@ printTree  = do
       
   
 
+main :: IO ()
 main = do
   (opts, inFileName) <- getOptions
   inFileH <- case inFileName of
@@ -247,7 +247,3 @@ main = do
   hSetBinaryMode stdout True
   
   parseDoc inFileH stdout
-
-  return ()
-       
-       
