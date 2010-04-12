@@ -5,6 +5,8 @@ import System.Console.GetOpt
 import System.Exit
 import Data.Maybe ( fromMaybe )
 import System.IO
+import System.Directory
+import System.FilePath
 --import System.IO.Error
 import Data.List
 --import Text.XML.HaXml.Pretty
@@ -26,42 +28,51 @@ data Flag = Backup | Encoding String| Quiet | Help | Version
           deriving (Show, Eq)
 
 
-getOptions :: IO ([Flag], Maybe FilePath)
+programOptions = [
+  Option ['b'] ["backup"]   (NoArg Backup)   "Backup original files",
+  Option ['e'] ["encoding"] (OptArg (Encoding . fromMaybe "ISO-8859-1") "ENCODING") "Encoding for output documents (default is iso-8859-1)",
+  Option ['q'] ["quiet"]    (NoArg Quiet)    "Be quiet. Do not print warnings",
+  Option ['h'] ["help"]     (NoArg Help)     "Show this help message and exit",
+  Option ['v'] ["version"]  (NoArg Version)  "Print version information and exit"
+  ]
+
+programUsageInfo = do
+  header <- getHeader
+  return $ usageInfo header programOptions
+    where
+      getHeader = do
+        progName <- getProgName
+        return $ "Beautifies (makes human readable) xml file(s) inplace.\n" ++
+                 "usage: " ++ progName ++ " OPTIONS XMLFILE1 [XMLFILE2, ...]\n" ++
+                 "       " ++ progName ++ " OPTIONS < somefile.xml > somefile.xml"
+  
+getOptions :: IO ([Flag], [FilePath])
 getOptions =
   do argv <- getArgs
      prog <- getProgName
-     (opts, inFileName) <- parseOptions argv prog
+     usi <- programUsageInfo
+     (opts, inFileNames) <- parseOptions argv usi
      
      if Help `elem` opts
-       then do let usi = usageInfo (header prog) options
-               putStrLn usi
+       then do putStrLn usi
                exitWith ExitSuccess
        else if Version `elem` opts
               then do putStrLn (prog ++ " version " ++ version)
                       exitWith ExitSuccess
               else return ()
      
-     return (opts, inFileName)
+     
+     return (opts, inFileNames)
      
   where
-    options = [
-      Option ['b'] ["backup"]   (NoArg Backup)   "Backup original files",
-      Option ['e'] ["encoding"] (OptArg (Encoding . fromMaybe "ISO-8859-1") "ENCODING") "Encoding for output documents (default is iso-8859-1)",
-      Option ['q'] ["quiet"]    (NoArg Quiet)    "Be quiet. Do not print warnings",
-      Option ['h'] ["help"]     (NoArg Help)     "Show this help message and exit",
-      Option ['v'] ["version"]  (NoArg Version)  "Print version information and exit"
-      ]
     header progName =
       "Beautifies (makes human readable) xml file(s) inplace.\n" ++
       "usage: " ++ progName ++ " OPTIONS XMLFILE1 [XMLFILE2, ...]\n" ++
       "       " ++ progName ++ " OPTIONS < somefile.xml > somefile.xml"
-    parseOptions argv prog = do
-           case getOpt Permute options argv of
-             (opt,[],[]) -> return (opt, Nothing)
-             (opt,x@(inFileName:[]),[]) -> return (opt, Just inFileName)
-             (_,extra,errs) -> error $ "unexpected extra arguments: " ++ (concat $ intersperse " " (tail extra)) ++ "\n" ++
-                                       (if null errs then "" else (concat $ intersperse "\n" errs) ++ "\n") ++
-                                       usageInfo (header prog) options
+    parseOptions argv usi = do
+           case getOpt Permute programOptions argv of
+             (opt,fileNames,[]) -> return (opt, fileNames)
+             (_,_,errs) -> error $ (concat $ intersperse "\n" errs) ++ "\n" ++ usi
 
 
 
@@ -234,16 +245,60 @@ printTree  = do
     Just e  -> do printElem e
                   printTree
       
+
+processSources :: [FilePath] -> [Flag] -> IO ()
+processSources [] _ = return ()
+processSources inFileNames opts = do
+  tmpDir <- getTemporaryDirectory
+  let inFileP = head inFileNames
+  let inPlace = inFileP /= "-"
+  
+  inFileH <- if inFileP == "-"
+             then return stdin
+             else do x <- openFile inFileP ReadMode
+                     return x
+  (outFileP, outFileH) <- do
+    if inPlace
+      then do x <- openTempFile tmpDir "xmlb.xml" 
+              return x  
+      else return ("-", stdout)
+  
+  hSetBinaryMode inFileH True
+  hSetBinaryMode outFileH True
+  
+  
+  parseDoc inFileH outFileH
+  
+  if inPlace
+    then do hClose inFileH
+            hClose outFileH
+            if Backup `elem` opts
+              then do renameFile inFileP $ addExtension inFileP "bak"
+              else return ()
+            copyFile outFileP inFileP
+            removeFile outFileP
+            
+    else return ()
+  
+  processSources (tail inFileNames) opts
+  
   
 
 main :: IO ()
 main = do
-  (opts, inFileName) <- getOptions
-  inFileH <- case inFileName of
-                  Nothing -> return stdin
-                  Just fn -> openFile fn ReadMode
-      
-  hSetBinaryMode inFileH True
-  hSetBinaryMode stdout True
   
-  parseDoc inFileH stdout
+  usi <- programUsageInfo
+  
+  stdin_isatty  <- hIsTerminalDevice stdin
+  stdout_isatty <- hIsTerminalDevice stdout
+  let inPlace = stdin_isatty && stdout_isatty
+  
+  (opts, inFileNames) <- getOptions
+  let inFileSources = if stdin_isatty && null inFileNames 
+                      then error $ "No input data\n" ++ usi
+                      else if null inFileNames
+                           then ["-"]
+                           else inFileNames
+
+  processSources inFileSources opts
+      
