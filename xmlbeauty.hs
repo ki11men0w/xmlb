@@ -21,7 +21,7 @@ import Control.Monad.State
 import Data.Char
 import Data.Maybe
 
-version = "2.0 (haskell)"
+version = "2.0.0.1 (haskell)"
 
 -- | Флаги коммандной строки
 data Flag = Backup | Encoding String| Quiet | Help | Version
