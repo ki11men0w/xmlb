@@ -64,14 +64,10 @@ getOptions =
      return (opts, inFileNames)
      
   where
-    header progName =
-      "Beautifies (makes human readable) xml file(s) inplace.\n" ++
-      "usage: " ++ progName ++ " OPTIONS XMLFILE1 [XMLFILE2, ...]\n" ++
-      "       " ++ progName ++ " OPTIONS < somefile.xml > somefile.xml"
     parseOptions argv usi = do
            case getOpt Permute programOptions argv of
              (opt,fileNames,[]) -> return (opt, fileNames)
-             (_,_,errs) -> error $ (concat $ intersperse "\n" errs) ++ "\n" ++ usi
+             (_,_,errs)         -> error $ (concat $ intersperse "\n" errs) ++ "\n" ++ usi
 
 
 
