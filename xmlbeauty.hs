@@ -53,14 +53,13 @@ getOptions =
      usi <- programUsageInfo
      (opts, inFileNames) <- parseOptions argv usi
      
-     if Help `elem` opts
-       then do putStrLn usi
-               exitWith ExitSuccess
-       else if Version `elem` opts
-              then do putStrLn (prog ++ " version " ++ version)
-                      exitWith ExitSuccess
-              else return ()
-     
+     case 1 of
+       _ 
+         | Help    `elem` opts -> do putStrLn usi
+                                     exitWith ExitSuccess
+         | Version `elem` opts -> do putStrLn (prog ++ " version " ++ version)
+                                     exitWith ExitSuccess
+         | True                -> do return ()
      
      return (opts, inFileNames)
      
