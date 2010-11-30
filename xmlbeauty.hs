@@ -29,12 +29,13 @@ data Flag = Backup | Encoding String| Quiet | Help | Version
           deriving (Show, Eq)
 
 
+programOptions :: [OptDescr Flag]
 programOptions = [
-  Option ['b'] ["backup"]   (NoArg Backup)   "Backup original files",
-  Option ['e'] ["encoding"] (OptArg (Encoding . fromMaybe "ISO-8859-1") "ENCODING") "Encoding for output documents (default is iso-8859-1)",
-  Option ['q'] ["quiet"]    (NoArg Quiet)    "Be quiet. Do not print warnings",
-  Option ['h'] ["help"]     (NoArg Help)     "Show this help message and exit",
-  Option ['v'] ["version"]  (NoArg Version)  "Print version information and exit"
+  Option ['b'] ["backup"]   (NoArg Backup)   "Backup original files.",
+  Option ['e'] ["encoding"] (ReqArg Encoding "ENCODING") "Encoding for output documents (default is iso-8859-1).",
+  Option ['q'] ["quiet"]    (NoArg Quiet)    "Be quiet. Do not print warnings.",
+  Option ['h'] ["help"]     (NoArg Help)     "Show this help message and exit.",
+  Option ['v'] ["version"]  (NoArg Version)  "Print version information and exit."
   ]
 
 programUsageInfo = do
