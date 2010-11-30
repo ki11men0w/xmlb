@@ -20,6 +20,7 @@ import Control.Monad.State
 
 import Data.Char
 import Data.Maybe
+import System.IO.Error (catch)
 
 version = "2.0.0.1 (haskell)"
 
@@ -244,7 +245,7 @@ printTree  = do
 processSources :: [FilePath] -> [Flag] -> IO ()
 processSources [] _ = return ()
 processSources inFileNames opts = do
-  tmpDir <- getTemporaryDirectory
+  tmpDir <- catch (getTemporaryDirectory) (\_ -> return ".")
   let inFileP = head inFileNames
   let inPlace = inFileP /= "-"
   
