@@ -73,15 +73,15 @@ getOptions =
 
 
 
-parseDoc :: Handle -> Handle -> IO ()
-parseDoc inH outH = do
+parseDoc :: Handle -> FilePath -> Handle -> IO ()
+parseDoc inH inFileName outH = do
   x <- hGetContents inH
   parseDoc' x
   return ()
     where
       parseDoc' :: String -> IO ()
       parseDoc' inpt = do
-        let (elms, xxx) = saxParse "unknown.xml" inpt
+        let (elms, xxx) = saxParse inFileName inpt
         runStateT printTree (SaxState {ident=0, elems=elms, lastElem = LastElemNothing, saveFunc = saveFunc})
         return ()
           where
@@ -249,21 +249,20 @@ processSources inFileNames opts = do
   let inFileP = head inFileNames
   let inPlace = inFileP /= "-"
   
-  inFileH <- if inFileP == "-"
-             then return stdin
-             else do x <- openFile inFileP ReadMode
-                     return x
+  (inFileH, inFileDecoratedName) <- if inFileP == "-"
+                                    then return (stdin, "stdin")
+                                    else do x <- openFile inFileP ReadMode
+                                            return (x, inFileP)
   (outFileP, outFileH) <- do
     if inPlace
-      then do x <- openTempFile tmpDir "xmlb.xml" 
+      then do x <- openTempFile tmpDir "xmlbeauty.xml" 
               return x  
       else return ("-", stdout)
   
   hSetBinaryMode inFileH True
   hSetBinaryMode outFileH True
   
-  
-  parseDoc inFileH outFileH
+  parseDoc inFileH inFileDecoratedName outFileH
   
   if inPlace
     then do hClose inFileH
