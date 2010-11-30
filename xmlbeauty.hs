@@ -88,6 +88,12 @@ parseDoc inH inFileName outH outputEncoding = do
       parseDoc' inpt = do
         let (elms, xxx) = saxParse inFileName inpt
         runStateT printTree (SaxState {ident=0, elems=elms, lastElem = LastElemNothing, saveFunc = saveFunc, outputEncoding = outputEncoding})
+        
+        case xxx of
+          Just s -> error s
+          _      -> return ()
+             
+        
         return ()
           where
             saveFunc :: String -> IO ()
