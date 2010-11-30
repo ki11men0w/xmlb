@@ -21,6 +21,9 @@ import Control.Monad.State
 import Data.Char
 import Data.Maybe
 import System.IO.Error (catch)
+import Text.Regex.Posix
+
+import Data.Encoding
 
 version = "2.0.0.1 (haskell)"
 
@@ -28,11 +31,12 @@ version = "2.0.0.1 (haskell)"
 data Flag = Backup | Encoding String| Quiet | Help | Version
           deriving (Show, Eq)
 
+defaultOutputEncoding = "ISO-8859-1"
 
 programOptions :: [OptDescr Flag]
 programOptions = [
   Option ['b'] ["backup"]   (NoArg Backup)   "Backup original files.",
-  Option ['e'] ["encoding"] (ReqArg Encoding "ENCODING") "Encoding for output documents (default is iso-8859-1).",
+  Option ['e'] ["encoding"] (ReqArg Encoding "ENCODING") ("Encoding for output documents (default is " ++ defaultOutputEncoding ++")."),
   Option ['q'] ["quiet"]    (NoArg Quiet)    "Be quiet. Do not print warnings.",
   Option ['h'] ["help"]     (NoArg Help)     "Show this help message and exit.",
   Option ['v'] ["version"]  (NoArg Version)  "Print version information and exit."
@@ -74,8 +78,8 @@ getOptions =
 
 
 
-parseDoc :: Handle -> FilePath -> Handle -> IO ()
-parseDoc inH inFileName outH = do
+parseDoc :: Handle -> FilePath -> Handle -> String -> IO ()
+parseDoc inH inFileName outH outputEncoding = do
   x <- hGetContents inH
   parseDoc' x
   return ()
@@ -83,11 +87,11 @@ parseDoc inH inFileName outH = do
       parseDoc' :: String -> IO ()
       parseDoc' inpt = do
         let (elms, xxx) = saxParse inFileName inpt
-        runStateT printTree (SaxState {ident=0, elems=elms, lastElem = LastElemNothing, saveFunc = saveFunc})
+        runStateT printTree (SaxState {ident=0, elems=elms, lastElem = LastElemNothing, saveFunc = saveFunc, outputEncoding = outputEncoding})
         return ()
           where
             saveFunc :: String -> IO ()
-            saveFunc = hPutStr outH
+            saveFunc = (hPutStr outH) . encodeString (encodingFromString outputEncoding)
 
 
 
@@ -103,6 +107,11 @@ showElement (SaxReference r)                           = case r of
                                                            RefEntity name -> "&" ++ name ++ ";"
                                                            RefChar   c    -> "&#" ++ show c ++ ";"
 showElement _                                          =  ""
+
+showSaxProcessingInstruction :: SaxElement -> String -> String
+showSaxProcessingInstruction (SaxProcessingInstruction (target, value)) encodingName =
+  let (pre, match, post) = value =~ "encoding=\"[^\"]+\"" :: (String, String, String)
+  in "<?" ++ target ++ " " ++ pre ++ "encoding=\"" ++ encodingName ++ "\"" ++ post ++ "?>"
 
 showAttributes :: [Attribute] -> String
 showAttributes [] = []
@@ -130,7 +139,8 @@ data LastElem = LastElemNothing | LastElemOpenTag | LastElemCloseTag | LastElemC
 data SaxState = SaxState { ident :: Int,
                            elems :: [SaxElement],
                            lastElem :: LastElem,
-                           saveFunc :: String -> IO ()
+                           saveFunc :: String -> IO (),
+                           outputEncoding :: String
                          }
 
 setIdent :: Int -> StateT SaxState IO ()
@@ -176,6 +186,11 @@ setLastElem :: LastElem -> StateT SaxState IO ()
 setLastElem le = do
   st <- get
   put $ st {lastElem = le}
+  
+getOutputEncoding :: StateT SaxState IO String
+getOutputEncoding = do
+  st <- get
+  return $ outputEncoding st
 
 xmlEscape' :: String -> String
 xmlEscape' s = s
@@ -188,7 +203,8 @@ printElem e = do
                                                     LastElemNothing  -> return ()
                                                     _                -> print' "\n"
                                                   
-                                                  printIdent $ showElement x
+                                                  enc <- getOutputEncoding
+                                                  printIdent $ showSaxProcessingInstruction x enc
                                                   print' "\n"
       
     x@(SaxElementOpen _ _)  -> do print' "\n"
@@ -263,7 +279,7 @@ processSources inFileNames opts = do
   hSetBinaryMode inFileH True
   hSetBinaryMode outFileH True
   
-  parseDoc inFileH inFileDecoratedName outFileH
+  parseDoc inFileH inFileDecoratedName outFileH outputEncoding
   
   if inPlace
     then do hClose inFileH
@@ -279,6 +295,14 @@ processSources inFileNames opts = do
   processSources (tail inFileNames) opts
   
   
+  where
+    outputEncoding = case find isEncoding opts of
+      Just (Encoding enc) -> enc
+      _                   -> defaultOutputEncoding
+    isEncoding x = case x of
+      Encoding _ -> True
+      _          -> False
+        
 
 main :: IO ()
 main = do
