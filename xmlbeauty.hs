@@ -89,17 +89,9 @@ parseDoc inH inFileName outH outputEncoding = do
       parseDoc' :: String -> IO ()
       parseDoc' inpt = do
         let (elms, xxx) = saxParse inFileName inpt
-        (tmpName, tmpH) <- do
-          tmpDir <- catch (getTemporaryDirectory) (\_ -> return ".")
-          openBinaryTempFile tmpDir "xmlbeauty.xml" 
         
-        runStateT printTree (SaxState {ident=0, elems=elms, lastElem = LastElemNothing, saveFunc = (hPutStr tmpH), outputEncoding = outputEncoding})
-        hSeek tmpH AbsoluteSeek 0
-        y <- hGetContents tmpH
-        saveFuncEnc y
-        hClose tmpH
-        removeFile tmpName
-          
+        runStateT printTree (SaxState {ident=0, elems=elms, lastElem = LastElemNothing, saveFunc = saveFuncEnc, outputEncoding = outputEncoding})
+        
         case xxx of
           Just s -> error s
           _      -> return ()
@@ -186,9 +178,9 @@ print' :: String -> StateT SaxState IO ()
 print' s = do st <- get
               justIO $ (saveFunc st) s
 
-printIdent :: String -> StateT SaxState IO ()
+printIdent :: String -> StateT SaxState IO (String)
 printIdent s = do i <- getIdent
-                  print' $ replicate i '\t' ++ s
+                  return $ replicate i '\t' ++ s
 
 popElem :: StateT SaxState IO (Maybe SaxElement)
 popElem = do
@@ -211,68 +203,79 @@ getOutputEncoding = do
 xmlEscape' :: String -> String
 xmlEscape' s = s
 
-printElem :: SaxElement -> StateT SaxState IO ()
+printElem :: SaxElement -> StateT SaxState IO (String)
 printElem e = do
   st <- get
   case e of
-    x@(SaxProcessingInstruction ("xml", _)) -> do case lastElem st of
-                                                    LastElemNothing  -> return ()
-                                                    _                -> print' "\n"
-                                                  
-                                                  enc <- getOutputEncoding
-                                                  printIdent $ showSaxProcessingInstruction x enc
-                                                  print' "\n"
+    x@(SaxProcessingInstruction ("xml", _)) -> do enc <- getOutputEncoding
+                                                  let s = case lastElem st of
+                                                        LastElemNothing  -> ""
+                                                        _                -> "\n"
+                                                    
+                                                  s' <- printIdent (showSaxProcessingInstruction x enc)
+                                                  return $ s ++ s' ++ "\n"
       
-    x@(SaxElementOpen _ _)  -> do print' "\n"
-                                  printIdent (showElement x) 
+    x@(SaxElementOpen _ _)  -> do s' <- printIdent (showElement x)
+                                  let s = "\n" ++ s'
                                   identMore
                                   setLastElem LastElemOpenTag
+                                  return s
                                   
     x@(SaxElementClose _ )  -> do identLess
-                                  case lastElem st of
-                                    LastElemChars   -> return ()
-                                    LastElemOpenTag -> return ()
-                                    _               -> do print' "\n"
-                                                          printIdent ""
-                                  print' $ showElement x
+                                  s <- case lastElem st of
+                                        LastElemChars   -> return ""
+                                        LastElemOpenTag -> return ""
+                                        _               -> do s <- printIdent ""
+                                                              return $ "\n" ++ s
                                   setLastElem LastElemCloseTag
+                                  return $ s ++ (showElement x)
     
     x@(SaxCharData s)       -> do if (all isSpace s) && lastElemIsNotChar
-                                    then return ()
-                                    else do print' $ xmlEscape' s
-                                            setLastElem LastElemChars
+                                    then return ""
+                                    else do setLastElem LastElemChars
+                                            return $ xmlEscape' s
+                                            
+                                            
                                     where 
                                       lastElemIsNotChar = case lastElem st of
                                                             LastElemChars -> False
                                                             _             -> True
                                             
-    x@(SaxElementTag _ _)   -> do print' "\n"
-                                  printIdent (showElement x) 
+    x@(SaxElementTag _ _)   -> do s <- printIdent (showElement x) 
                                   setLastElem LastElemCloseTag
+                                  return $ "\n" ++ s
                                   
-    x@(SaxComment s)        -> do print' "\n"
-                                  printIdent (showElement x)
-                                  print' "\n"
+    x@(SaxComment s)        -> do s <- printIdent (showElement x)
                                   setLastElem LastElemComment
-    x@(SaxReference r)      -> do print' $ showElement x
-                                  setLastElem LastElemChars
-    x                       -> do print' $ showElement x
+                                  return $ "\n" ++ s ++ "\n"
+    x@(SaxReference r)      -> do setLastElem LastElemChars
+                                  return $ showElement x
+    x                       -> do return $ showElement x
         
 
 
 printTree  :: StateT SaxState IO ()
 printTree  = do
-  x <- popElem
-  case x of
-    Nothing -> do st <- get
-                  case lastElem st of
-                    LastElemCloseTag -> lastNewLine
-                    LastElemComment  -> lastNewLine
-                    _                -> return ()
-                    where lastNewLine = print' "\n"
-                  
-    Just e  -> do printElem e
-                  printTree
+  st <- get
+  s <- printTree'
+  liftIO $ (saveFunc st) s
+  
+  where
+    printTree'  :: StateT SaxState IO (String)
+    printTree' = do
+      x <- popElem
+      case x of
+        Nothing -> do st <- get
+                      case lastElem st of
+                        LastElemCloseTag -> return lastNewLine
+                        LastElemComment  -> return lastNewLine
+                        _                -> return ""
+                        where lastNewLine = "\n"
+                      
+        Just e  -> do el <- printElem e
+                      els <- printTree'
+                      return $ el ++ els
+          
       
 
 processSources :: [FilePath] -> [Flag] -> IO ()
