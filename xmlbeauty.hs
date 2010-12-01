@@ -21,9 +21,11 @@ import Control.Monad.State
 import Data.Char
 import Data.Maybe
 import System.IO.Error (catch)
+--import Control.Exception (finally)
 import Text.Regex.Posix
 
 import Data.Encoding
+import qualified Data.ByteString.Lazy as LBS
 
 version = "2.0.0.1 (haskell)"
 
@@ -87,8 +89,17 @@ parseDoc inH inFileName outH outputEncoding = do
       parseDoc' :: String -> IO ()
       parseDoc' inpt = do
         let (elms, xxx) = saxParse inFileName inpt
-        runStateT printTree (SaxState {ident=0, elems=elms, lastElem = LastElemNothing, saveFunc = saveFunc, outputEncoding = outputEncoding})
+        (tmpName, tmpH) <- do
+          tmpDir <- catch (getTemporaryDirectory) (\_ -> return ".")
+          openBinaryTempFile tmpDir "xmlbeauty.xml" 
         
+        runStateT printTree (SaxState {ident=0, elems=elms, lastElem = LastElemNothing, saveFunc = (hPutStr tmpH), outputEncoding = outputEncoding})
+        hSeek tmpH AbsoluteSeek 0
+        y <- hGetContents tmpH
+        saveFuncEnc y
+        hClose tmpH
+        removeFile tmpName
+          
         case xxx of
           Just s -> error s
           _      -> return ()
@@ -96,8 +107,7 @@ parseDoc inH inFileName outH outputEncoding = do
         
         return ()
           where
-            saveFunc :: String -> IO ()
-            saveFunc = (hPutStr outH) . encodeString (encodingFromString outputEncoding)
+            saveFuncEnc = (LBS.hPutStr outH) . encodeLazyByteString (encodingFromString outputEncoding)
 
 
 
