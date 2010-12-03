@@ -25,6 +25,7 @@ import System.IO.Error (catch)
 import Text.Regex.Posix
 
 import Data.Encoding
+import qualified Data.Encoding.ISO88591 as ISO88591
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Lazy as LBS
 
@@ -89,7 +90,9 @@ getXmlEncoding xml =
                 Just s -> s
                 _      -> defaultInputEncoding
                 
-    where bomTest :: Maybe String
+    where makeBS = foldr BS.cons BS.empty
+          
+          bomTest :: Maybe String
           bomTest =
             let utf8'BOM       = makeBS [0xef, 0xbb, 0xbf]
                 utf16be'BOM    = makeBS [0xFE, 0xFF]
@@ -130,12 +133,21 @@ getXmlEncoding xml =
 
                 | otherwise -> Nothing
               
-              where makeBS   = foldr BS.cons BS.empty
-                    checkBOM bom = bom `BS.isPrefixOf` xml
+              where checkBOM bom = bom `BS.isPrefixOf` xml
                   
           
           xmlDeclTest :: Maybe String
-          xmlDeclTest = Nothing
+          xmlDeclTest =
+            -- Считаем что по крайней мере до конца xml-заголовока идут только однобайтовые символы
+            let xml'  = decodeStrictByteString (encodingFromString "ISO-8859-1") (BS.take 1000 xml)
+                xml'' = dropWhile isSpace xml'
+                (_, _, _, enc) = xml'' =~ "<\\?xml .*encoding=\"(.+)\".*\\?>" :: (String, String, String, [String])
+            in
+             case enc of
+               e:es      -> Just e
+               otherwise -> Nothing
+               
+
           
   
   
