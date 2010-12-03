@@ -25,6 +25,7 @@ import System.IO.Error (catch)
 import Text.Regex.Posix
 
 import Data.Encoding
+import qualified Data.ByteString as BS
 import qualified Data.ByteString.Lazy as LBS
 
 version = "2.0.0.1 (haskell)"
@@ -33,6 +34,7 @@ version = "2.0.0.1 (haskell)"
 data Flag = Backup | Encoding String| Quiet | Help | Version
           deriving (Show, Eq)
 
+defaultInputEncoding  = "UTF-8"
 defaultOutputEncoding = "ISO-8859-1"
 
 programOptions :: [OptDescr Flag]
@@ -79,16 +81,76 @@ getOptions =
 
 
 
+getXmlEncoding :: BS.ByteString -> String
+getXmlEncoding xml =
+  case bomTest of
+    Just s -> s
+    _      -> case xmlDeclTest of
+                Just s -> s
+                _      -> defaultInputEncoding
+                
+    where bomTest :: Maybe String
+          bomTest =
+            let utf8'BOM       = makeBS [0xef, 0xbb, 0xbf]
+                utf16be'BOM    = makeBS [0xFE, 0xFF]
+                utf16le'BOM    = makeBS [0xFF, 0xFE]
+                utf32be'BOM    = makeBS [0x00, 0x00, 0xFE, 0xFF]
+                utf32le'BOM    = makeBS [0xFF, 0xFE, 0x00, 0x00]
+                utf7'BOMstart  = makeBS [0x2B, 0x2F, 0x76]
+                utf1'BOM       = makeBS [0xF7, 0x64, 0x4C]
+                utfEBCDIC'BOM  = makeBS [0xDD, 0x73, 0x66, 0x73]
+                scsu'BOM       = makeBS [0x0E, 0xFE, 0xFF]
+                bocu1'BOM      = makeBS [0xFB, 0xEE, 0x28]
+                gb18030'BOM    = makeBS [0x84, 0x31, 0x95, 0x33]
+                
+            in case 1 of
+              _ 
+                | checkBOM utf8'BOM      -> Just "UTF-8"
+                | checkBOM utf16be'BOM   -> Just "UTF-16"
+                | checkBOM utf16le'BOM   -> Just "UTF-16"
+                | checkBOM utf32be'BOM   -> Just "UTF-32"
+                | checkBOM utf32le'BOM   -> Just "UTF-32"
+                | checkBOM utf7'BOMstart ->
+                        -- Для UTF-7 последний символ BOM может содержать 
+                        -- любой из четырех символов.
+                        let utf7'BOMend = BS.head$ BS.drop (BS.length utf7'BOMstart) xml
+                        in case 1 of
+                          _
+                            -- Проверим что что строка не кончилась на первой части BOM
+                            | BS.null$ BS.drop (BS.length utf7'BOMstart) xml  -> Nothing
+                            -- Проверим входит ли наш символ в группу допустимых концов BOM
+                            | utf7'BOMend `elem` [0x38, 0x39, 0x2B, 0x2F]     -> Just "UTF-7"
+                            | otherwise                                       -> Nothing
+                
+                | checkBOM utf1'BOM      -> Just "UTF-1"
+                | checkBOM utfEBCDIC'BOM -> Just "UTF-EBCDIC"
+                | checkBOM scsu'BOM      -> Just "SCSU"
+                | checkBOM bocu1'BOM     -> Just "BOCU-1"
+                | checkBOM gb18030'BOM   -> Just "GB18030"
+
+                | otherwise -> Nothing
+              
+              where makeBS   = foldr BS.cons BS.empty
+                    checkBOM bom = bom `BS.isPrefixOf` xml
+                  
+          
+          xmlDeclTest :: Maybe String
+          xmlDeclTest = Nothing
+          
+  
+  
 
 parseDoc :: Handle -> FilePath -> Handle -> String -> IO ()
 parseDoc inH inFileName outH outputEncoding = do
-  x <- hGetContents inH
+  x <- BS.hGetContents inH
   parseDoc' x
   return ()
     where
-      parseDoc' :: String -> IO ()
+      parseDoc' :: BS.ByteString -> IO ()
       parseDoc' inpt = do
-        let (elms, xxx) = saxParse inFileName inpt
+        
+        let (elms, xxx) = saxParse inFileName (decodeStrictByteString (encodingFromString $ getXmlEncoding inpt) inpt)
+        
         (tmpName, tmpH) <- do
           tmpDir <- catch (getTemporaryDirectory) (\_ -> return ".")
           openBinaryTempFile tmpDir "xmlbeauty.xml" 
