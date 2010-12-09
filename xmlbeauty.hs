@@ -162,21 +162,14 @@ parseDoc inH inFileName outH outputEncoding = do
         
         let (elms, xxx) = saxParse inFileName (decodeStrictByteString (encodingFromString $ getXmlEncoding inpt) inpt)
         
-        (tmpName, tmpH) <- do
-          tmpDir <- catch (getTemporaryDirectory) (\_ -> return ".")
-          openBinaryTempFile tmpDir "xmlbeauty.xml" 
-        
-        runStateT printTree (SaxState {ident=0, elems=elms, lastElem = LastElemNothing, saveFunc = (hPutStr tmpH), outputEncoding = outputEncoding})
-        hSeek tmpH AbsoluteSeek 0
-        y <- hGetContents tmpH
-        saveFuncEnc y
-        hClose tmpH
-        removeFile tmpName
-          
         case xxx of
           Just s -> error s
           _      -> return ()
              
+        let result = printTree (SaxState {ident=0, lastElem = LastElemNothing, outputEncoding = outputEncoding}) elms
+        
+        saveFuncEnc result
+          
         
           where
             saveFuncEnc = (LBS.hPutStr outH) . encodeLazyByteString (encodingFromString outputEncoding)
@@ -225,9 +218,7 @@ showAttributes attrs =
 
 data LastElem = LastElemNothing | LastElemOpenTag | LastElemCloseTag | LastElemChars | LastElemComment
 data SaxState = SaxState { ident :: Int,
-                           elems :: [SaxElement],
                            lastElem :: LastElem,
-                           saveFunc :: String -> IO (),
                            outputEncoding :: String
                          }
 
@@ -241,35 +232,15 @@ getIdent = do
   x <- get
   return $ ident x
   
-identMore :: StateT SaxState IO ()
-identMore = do
-  x <- get
-  put $ x { ident = (ident x) +1 }
+identMore :: Int -> Int
+identMore i = i + 1
 
-identLess :: StateT SaxState IO ()
-identLess = do
-  x <- get
-  put $ x { ident = (ident x) -1 }
+identLess :: Int -> Int
+identLess i = i - 1 
   
-justIO :: IO () -> StateT SaxState IO ()
-justIO action = do liftIO action
+printIdent :: Int -> String
+printIdent i = replicate i '\t'
 
-print' :: String -> StateT SaxState IO ()
-print' s = do st <- get
-              justIO $ (saveFunc st) s
-
-printIdent :: String -> StateT SaxState IO ()
-printIdent s = do i <- getIdent
-                  print' $ replicate i '\t' ++ s
-
-popElem :: StateT SaxState IO (Maybe SaxElement)
-popElem = do
-  x <- get
-  case elems x of
-    []     -> return Nothing
-    (h:hs) -> do put x { elems = hs }
-                 return $ Just h
-                 
 setLastElem :: LastElem -> StateT SaxState IO ()
 setLastElem le = do
   st <- get
@@ -283,68 +254,62 @@ getOutputEncoding = do
 xmlEscape' :: String -> String
 xmlEscape' s = s
 
-printElem :: SaxElement -> StateT SaxState IO ()
-printElem e = do
-  st <- get
+printElem :: SaxState -> SaxElement -> (SaxState, String)
+printElem st e = do
   case e of
-    x@(SaxProcessingInstruction ("xml", _)) -> do case lastElem st of
-                                                    LastElemNothing  -> return ()
-                                                    _                -> print' "\n"
+    x@(SaxProcessingInstruction ("xml", _)) -> let pref = case lastElem st of
+                                                     LastElemNothing  -> ""
+                                                     _                -> "\n"
                                                   
-                                                  enc <- getOutputEncoding
-                                                  printIdent $ showSaxProcessingInstruction x enc
-                                                  print' "\n"
+                                                   ident' = ident st
+                                                   str = showSaxProcessingInstruction x (outputEncoding st)
+                                                   ident_s = printIdent ident'
+                                               in (st,  ident_s ++ str ++ "\n")
       
-    x@(SaxElementOpen _ _)  -> do print' "\n"
-                                  printIdent (showElement x) 
-                                  identMore
-                                  setLastElem LastElemOpenTag
+    x@(SaxElementOpen _ _)  -> let ident' = ident st
+                                   lastElem' = lastElem st
+                               in (st {ident = identMore ident', lastElem = LastElemOpenTag}, "\n" ++ printIdent ident' ++ showElement x)
                                   
-    x@(SaxElementClose _ )  -> do identLess
-                                  case lastElem st of
-                                    LastElemChars   -> return ()
-                                    LastElemOpenTag -> return ()
-                                    _               -> do print' "\n"
-                                                          printIdent ""
-                                  print' $ showElement x
-                                  setLastElem LastElemCloseTag
+    x@(SaxElementClose _ )  -> let ident' = ident st - 1
+                                   prefix = case lastElem st of
+                                     LastElemChars   -> ""
+                                     LastElemOpenTag -> ""
+                                     _               -> "\n" ++ printIdent ident'
+
+                               in (st {ident = ident', lastElem = LastElemCloseTag}, prefix ++ showElement x)
+                                  
     
-    x@(SaxCharData s)       -> do if (all isSpace s) && lastElemIsNotChar
-                                    then return ()
-                                    else do print' $ xmlEscape' s
-                                            setLastElem LastElemChars
-                                    where 
-                                      lastElemIsNotChar = case lastElem st of
-                                                            LastElemChars -> False
-                                                            _             -> True
+    x@(SaxCharData s)       -> let str = if (all isSpace s) && lastElemIsNotChar
+                                         then ""
+                                         else xmlEscape' s
+                               in (st {lastElem = LastElemChars}, str)
+                                 where 
+                                   lastElemIsNotChar = case lastElem st of
+                                     LastElemChars -> False
+                                     _             -> True
                                             
-    x@(SaxElementTag _ _)   -> do print' "\n"
-                                  printIdent (showElement x) 
-                                  setLastElem LastElemCloseTag
+    x@(SaxElementTag _ _)   -> let ident' = ident st
+                                   prefix = printIdent ident'
+                               in (st {lastElem = LastElemCloseTag}, prefix ++ showElement x)
                                   
-    x@(SaxComment s)        -> do print' "\n"
-                                  printIdent (showElement x)
-                                  print' "\n"
-                                  setLastElem LastElemComment
-    x@(SaxReference r)      -> do print' $ showElement x
-                                  setLastElem LastElemChars
-    x                       -> do print' $ showElement x
+    x@(SaxComment s)        -> (st{ lastElem = LastElemComment}, "\n" ++ printIdent (ident st) ++ showElement x ++ "\n")
+    x@(SaxReference r)      -> (st{ lastElem = LastElemChars}, showElement x)
+    x                       -> (st, showElement x)
         
 
 
-printTree  :: StateT SaxState IO ()
-printTree  = do
-  x <- popElem
-  case x of
-    Nothing -> do st <- get
-                  case lastElem st of
+printTree  :: SaxState -> [SaxElement] -> String
+printTree state [] =
+                  case lastElem state of
                     LastElemCloseTag -> lastNewLine
                     LastElemComment  -> lastNewLine
-                    _                -> return ()
-                    where lastNewLine = print' "\n"
-                  
-    Just e  -> do printElem e
-                  printTree
+                    _                -> ""
+                    where lastNewLine = "\n"
+                 
+printTree state elems =
+  let (x:xs) = elems
+      (state', str) = printElem state x
+  in str ++ printTree state' xs
       
 
 processSources :: [FilePath] -> [Flag] -> IO ()
