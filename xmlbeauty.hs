@@ -116,13 +116,13 @@ getXmlEncoding xml =
                 | checkBOM utf7'BOMstart ->
                         -- Для UTF-7 последний символ BOM может содержать 
                         -- любой из четырех символов.
-                        let utf7'BOMend = BS.head$ BS.drop (BS.length utf7'BOMstart) xml
+                        let xml' = BS.drop (BS.length utf7'BOMstart) xml
                         in case 1 of
                           _
                             -- Проверим что что строка не кончилась на первой части BOM
-                            | BS.null$ BS.drop (BS.length utf7'BOMstart) xml  -> Nothing
+                            | BS.null xml'  -> Nothing
                             -- Проверим входит ли наш символ в группу допустимых концов BOM
-                            | utf7'BOMend `elem` [0x38, 0x39, 0x2B, 0x2F]     -> Just "UTF-7"
+                            | BS.head xml' `elem` [0x38, 0x39, 0x2B, 0x2F]    -> Just "UTF-7"
                             | otherwise                                       -> Nothing
                 
                 | checkBOM utf1'BOM      -> Just "UTF-1"
