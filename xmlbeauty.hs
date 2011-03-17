@@ -12,7 +12,7 @@ import Data.List
 --import Text.XML.HaXml.Pretty
 import Text.XML.HaXml.SAX
 import Text.XML.HaXml.Types
-import Text.XML.HaXml.Escape
+--import Text.XML.HaXml.Escape
 --import Text.XML.HaXml.XmlContent.Parser
 --import Control.Monad.Trans
 --import Control.Monad
@@ -20,12 +20,12 @@ import Control.Monad.State
 
 import Data.Char
 import Data.Maybe
-import System.IO.Error (catch)
+--import System.IO.Error (catch)
 --import Control.Exception (finally)
 import Text.Regex.Posix
 
 import Data.Encoding
-import qualified Data.Encoding.ISO88591 as ISO88591
+--import qualified Data.Encoding.ISO88591 as ISO88591
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Lazy as LBS
 
