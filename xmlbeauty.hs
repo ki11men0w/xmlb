@@ -156,7 +156,6 @@ parseDoc :: Handle -> FilePath -> Handle -> String -> IO ()
 parseDoc inH inFileName outH outputEncoding = do
   x <- BS.hGetContents inH
   parseDoc' x
-  return ()
     where
       parseDoc' :: BS.ByteString -> IO ()
       parseDoc' inpt = do
@@ -179,7 +178,6 @@ parseDoc inH inFileName outH outputEncoding = do
           _      -> return ()
              
         
-        return ()
           where
             saveFuncEnc = (LBS.hPutStr outH) . encodeLazyByteString (encodingFromString outputEncoding)
 
