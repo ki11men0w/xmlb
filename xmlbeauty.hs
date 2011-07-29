@@ -90,21 +90,19 @@ getXmlEncoding xml =
                 Just s -> s
                 _      -> defaultInputEncoding
                 
-    where makeBS = foldr BS.cons BS.empty
-          
-          bomTest :: Maybe String
+    where bomTest :: Maybe String
           bomTest =
-            let utf8'BOM       = makeBS [0xef, 0xbb, 0xbf]
-                utf16be'BOM    = makeBS [0xFE, 0xFF]
-                utf16le'BOM    = makeBS [0xFF, 0xFE]
-                utf32be'BOM    = makeBS [0x00, 0x00, 0xFE, 0xFF]
-                utf32le'BOM    = makeBS [0xFF, 0xFE, 0x00, 0x00]
-                utf7'BOMstart  = makeBS [0x2B, 0x2F, 0x76]
-                utf1'BOM       = makeBS [0xF7, 0x64, 0x4C]
-                utfEBCDIC'BOM  = makeBS [0xDD, 0x73, 0x66, 0x73]
-                scsu'BOM       = makeBS [0x0E, 0xFE, 0xFF]
-                bocu1'BOM      = makeBS [0xFB, 0xEE, 0x28]
-                gb18030'BOM    = makeBS [0x84, 0x31, 0x95, 0x33]
+            let utf8'BOM       = BS.pack [0xef, 0xbb, 0xbf]
+                utf16be'BOM    = BS.pack [0xFE, 0xFF]
+                utf16le'BOM    = BS.pack [0xFF, 0xFE]
+                utf32be'BOM    = BS.pack [0x00, 0x00, 0xFE, 0xFF]
+                utf32le'BOM    = BS.pack [0xFF, 0xFE, 0x00, 0x00]
+                utf7'BOMstart  = BS.pack [0x2B, 0x2F, 0x76]
+                utf1'BOM       = BS.pack [0xF7, 0x64, 0x4C]
+                utfEBCDIC'BOM  = BS.pack [0xDD, 0x73, 0x66, 0x73]
+                scsu'BOM       = BS.pack [0x0E, 0xFE, 0xFF]
+                bocu1'BOM      = BS.pack [0xFB, 0xEE, 0x28]
+                gb18030'BOM    = BS.pack [0x84, 0x31, 0x95, 0x33]
                 
             in case 1 of
               _ 
@@ -202,7 +200,7 @@ showSaxProcessingInstruction (SaxProcessingInstruction (target, value)) encoding
   in "<?" ++ target ++ " " ++ pre ++ "encoding=\"" ++ encodingName ++ "\"" ++ post ++ "?>"
 
 showAttributes :: [Attribute] -> String
-showAttributes [] = []
+showAttributes [] = ""
 showAttributes attrs =
   " " ++ (concat $ intersperse " " (showAttributes' attrs))
   where
@@ -215,9 +213,9 @@ showAttributes attrs =
           where
             showAttrValues :: [Either String Reference] -> String
             showAttrValues [] = []
-            showAttrValues ((Left value):vs) = value ++ showAttrValues vs
-            showAttrValues ((Right value):vs) =
-              case value of
+            showAttrValues ((Left str):vs)  = str ++ showAttrValues vs
+            showAttrValues ((Right ref):vs) =
+              case ref of
                 RefEntity name -> "&" ++ name ++ ";"
                 RefChar   c    -> "&#" ++ show c ++ ";"
               ++ showAttrValues vs
