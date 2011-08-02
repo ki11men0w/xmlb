@@ -345,11 +345,10 @@ printTree  = do
                   printTree
       
 
-processSources :: [FilePath] -> [Flag] -> IO ()
-processSources [] _ = return ()
-processSources inFileNames opts = do
+processOneSource :: [Flag] -> FilePath -> IO ()
+processOneSource opts inFileName = do
   tmpDir <- catch (getTemporaryDirectory) (\_ -> return ".")
-  let inFileP = head inFileNames
+  let inFileP = inFileName
   
   stdout_isatty <- hIsTerminalDevice stdout
   let inPlace = inFileP /= "-" && stdout_isatty
@@ -381,8 +380,6 @@ processSources inFileNames opts = do
             
     else return ()
   
-  processSources (tail inFileNames) opts
-  
   
   where
     outputEncoding = case find isEncoding opts of
@@ -409,5 +406,5 @@ main = do
                            then ["-"]
                            else inFileNames
 
-  processSources inFileSources opts
+  mapM_ (processOneSource opts) inFileSources 
       
