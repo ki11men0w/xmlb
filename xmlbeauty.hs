@@ -350,7 +350,9 @@ processSources [] _ = return ()
 processSources inFileNames opts = do
   tmpDir <- catch (getTemporaryDirectory) (\_ -> return ".")
   let inFileP = head inFileNames
-  let inPlace = inFileP /= "-"
+  
+  stdout_isatty <- hIsTerminalDevice stdout
+  let inPlace = inFileP /= "-" && stdout_isatty
   
   (inFileH, inFileDecoratedName) <- if inFileP == "-"
                                     then return (stdin, "stdin")
