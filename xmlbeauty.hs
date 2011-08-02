@@ -375,8 +375,9 @@ processSources inFileNames opts = do
             if Backup `elem` opts
               then do renameFile inFileP $ addExtension inFileP "bak"
               else return ()
-            copyFile outFileP inFileP
-            removeFile outFileP
+            catch (renameFile outFileP inFileP) 
+                  (\_ -> do copyFile outFileP inFileP
+                            removeFile outFileP)
             
     else return ()
   
