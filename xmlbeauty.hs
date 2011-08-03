@@ -3,7 +3,7 @@ module Main where
 import System.Environment
 import System.Console.GetOpt
 import System.Exit
-import Data.Maybe ( fromMaybe )
+--import Data.Maybe ( fromMaybe )
 import System.IO
 import System.Directory
 import System.FilePath
@@ -15,7 +15,7 @@ import Text.XML.HaXml.Types
 --import Text.XML.HaXml.Escape
 --import Text.XML.HaXml.XmlContent.Parser
 --import Control.Monad.Trans
---import Control.Monad
+import Control.Monad
 import Control.Monad.State
 
 import Data.Char
@@ -40,11 +40,11 @@ defaultOutputEncoding = "ISO-8859-1"
 
 programOptions :: [OptDescr Flag]
 programOptions = [
-  Option ['b'] ["backup"]   (NoArg Backup)   "Backup original files.",
-  Option ['e'] ["encoding"] (ReqArg Encoding "ENCODING") ("Encoding for output documents (default is " ++ defaultOutputEncoding ++")."),
-  Option ['q'] ["quiet"]    (NoArg Quiet)    "Be quiet. Do not print warnings.",
-  Option ['h'] ["help"]     (NoArg Help)     "Show this help message and exit.",
-  Option ['v'] ["version"]  (NoArg Version)  "Print version information and exit."
+  Option "b" ["backup"]   (NoArg Backup)   "Backup original files.",
+  Option "e" ["encoding"] (ReqArg Encoding "ENCODING") ("Encoding for output documents (default is " ++ defaultOutputEncoding ++")."),
+  Option "q" ["quiet"]    (NoArg Quiet)    "Be quiet. Do not print warnings.",
+  Option "h" ["help"]     (NoArg Help)     "Show this help message and exit.",
+  Option "v" ["version"]  (NoArg Version)  "Print version information and exit."
   ]
 
 programUsageInfo = do
@@ -70,15 +70,15 @@ getOptions =
                                      exitWith ExitSuccess
          | Version `elem` opts -> do putStrLn (prog ++ " version " ++ version)
                                      exitWith ExitSuccess
-         | True                -> do return ()
+         | True                -> return ()
      
      return (opts, inFileNames)
      
   where
-    parseOptions argv usi = do
+    parseOptions argv usi =
            case getOpt Permute programOptions argv of
              (opt,fileNames,[]) -> return (opt, fileNames)
-             (_,_,errs)         -> error $ (concat $ intersperse "\n" errs) ++ "\n" ++ usi
+             (_,_,errs)         -> error $ concat (intersperse "\n" errs) ++ "\n" ++ usi
 
 
 
@@ -161,10 +161,10 @@ parseDoc inH inFileName outH outputEncoding = do
         let (elms, xxx) = saxParse inFileName (decodeStrictByteString (encodingFromString $ getXmlEncoding inpt) inpt)
         
         (tmpName, tmpH) <- do
-          tmpDir <- catch (getTemporaryDirectory) (\_ -> return ".")
+          tmpDir <- catch getTemporaryDirectory (\_ -> return ".")
           openBinaryTempFile tmpDir "xmlbeauty.xml" 
         
-        runStateT printTree (SaxState {ident=0, elems=elms, lastElem = LastElemNothing, saveFunc = (hPutStr tmpH), outputEncoding = outputEncoding})
+        runStateT printTree SaxState {ident=0, elems=elms, lastElem = LastElemNothing, saveFunc = hPutStr tmpH, outputEncoding = outputEncoding}
         hSeek tmpH AbsoluteSeek 0
         y <- hGetContents tmpH
         saveFuncEnc y
@@ -177,7 +177,7 @@ parseDoc inH inFileName outH outputEncoding = do
              
         
           where
-            saveFuncEnc = (LBS.hPutStr outH) . encodeLazyByteString (encodingFromString outputEncoding)
+            saveFuncEnc = LBS.hPutStr outH . encodeLazyByteString (encodingFromString outputEncoding)
 
 
 
@@ -202,19 +202,19 @@ showSaxProcessingInstruction (SaxProcessingInstruction (target, value)) encoding
 showAttributes :: [Attribute] -> String
 showAttributes [] = ""
 showAttributes attrs =
-  " " ++ (concat $ intersperse " " (showAttributes' attrs))
+  ' ' : unwords (showAttributes' attrs)
   where
     showAttributes' :: [Attribute] -> [String]
     showAttributes' [] = []
-    showAttributes' (a:as) = ((showAttr a):showAttributes' as)
+    showAttributes' (a:as) = showAttr a : showAttributes' as
       where
         showAttr :: Attribute -> String
         showAttr (name, AttValue attrvs) = name ++ "=\"" ++ showAttrValues attrvs ++ "\""
           where
             showAttrValues :: [Either String Reference] -> String
             showAttrValues [] = []
-            showAttrValues ((Left str):vs)  = str ++ showAttrValues vs
-            showAttrValues ((Right ref):vs) =
+            showAttrValues (Left str : vs)  = str ++ showAttrValues vs
+            showAttrValues (Right ref : vs) =
               case ref of
                 RefEntity name -> "&" ++ name ++ ";"
                 RefChar   c    -> "&#" ++ show c ++ ";"
@@ -242,19 +242,19 @@ getIdent = do
 identMore :: StateT SaxState IO ()
 identMore = do
   x <- get
-  put $ x { ident = (ident x) +1 }
+  put $ x { ident = ident x +1 }
 
 identLess :: StateT SaxState IO ()
 identLess = do
   x <- get
-  put $ x { ident = (ident x) -1 }
+  put $ x { ident = ident x -1 }
   
 justIO :: IO () -> StateT SaxState IO ()
-justIO action = do liftIO action
+justIO = liftIO
 
 print' :: String -> StateT SaxState IO ()
 print' s = do st <- get
-              justIO $ (saveFunc st) s
+              justIO $ saveFunc st s
 
 printIdent :: String -> StateT SaxState IO ()
 printIdent s = do i <- getIdent
@@ -307,14 +307,13 @@ printElem e = do
                                   print' $ showElement x
                                   setLastElem LastElemCloseTag
     
-    x@(SaxCharData s)       -> do if (all isSpace s) && lastElemIsNotChar
-                                    then return ()
-                                    else do print' $ xmlEscape' s
-                                            setLastElem LastElemChars
-                                    where 
-                                      lastElemIsNotChar = case lastElem st of
-                                                            LastElemChars -> False
-                                                            _             -> True
+    x@(SaxCharData s)       -> unless (all isSpace s && lastElemIsNotChar) $
+                                 do print' $ xmlEscape' s
+                                    setLastElem LastElemChars
+                                 where 
+                                   lastElemIsNotChar = case lastElem st of
+                                                         LastElemChars -> False
+                                                         _             -> True
                                             
     x@(SaxElementTag _ _)   -> do print' "\n"
                                   printIdent (showElement x) 
@@ -326,7 +325,7 @@ printElem e = do
                                   setLastElem LastElemComment
     x@(SaxReference r)      -> do print' $ showElement x
                                   setLastElem LastElemChars
-    x                       -> do print' $ showElement x
+    x                       -> print' $ showElement x
         
 
 
@@ -347,7 +346,7 @@ printTree  = do
 
 processOneSource :: [Flag] -> FilePath -> IO ()
 processOneSource opts inFileName = do
-  tmpDir <- catch (getTemporaryDirectory) (\_ -> return ".")
+  tmpDir <- catch getTemporaryDirectory (\_ -> return ".")
   let inFileP = inFileName
   
   stdout_isatty <- hIsTerminalDevice stdout
@@ -357,10 +356,9 @@ processOneSource opts inFileName = do
                                     then return (stdin, "stdin")
                                     else do x <- openFile inFileP ReadMode
                                             return (x, inFileP)
-  (outFileP, outFileH) <- do
+  (outFileP, outFileH) <-
     if inPlace
-      then do x <- openTempFile tmpDir "xmlbeauty.xml" 
-              return x  
+      then openTempFile tmpDir "xmlbeauty.xml" 
       else return ("-", stdout)
   
   hSetBinaryMode inFileH True
@@ -368,17 +366,13 @@ processOneSource opts inFileName = do
   
   parseDoc inFileH inFileDecoratedName outFileH outputEncoding
   
-  if inPlace
-    then do hClose inFileH
-            hClose outFileH
-            if Backup `elem` opts
-              then do renameFile inFileP $ addExtension inFileP "bak"
-              else return ()
-            catch (renameFile outFileP inFileP) 
-                  (\_ -> do copyFile outFileP inFileP
-                            removeFile outFileP)
+  when inPlace $
+    do hClose inFileH
+       hClose outFileH
+       when (Backup `elem` opts) (renameFile inFileP $ addExtension inFileP "bak")
+       copyFile outFileP inFileP
+       removeFile outFileP
             
-    else return ()
   
   
   where
