@@ -226,7 +226,7 @@ showAttributes attrs =
               ++ showAttrValues vs
   
 
-data LastElem = LastElemNothing | LastElemOpenTag | LastElemCloseTag | LastElemChars | LastElemComment
+data LastElem = LastElemNothing | LastElemXmlProcessingInstruction | LastElemOpenTag | LastElemCloseTag | LastElemChars | LastElemComment
 data SaxState = SaxState { ident :: Int,
                            elems :: [SaxElement],
                            lastElem :: LastElem,
@@ -296,7 +296,7 @@ printElem e = do
                                                   
                                                   enc <- getOutputEncoding
                                                   printIdent $ showSaxProcessingInstruction x enc
-                                                  print' "\n"
+                                                  setLastElem LastElemXmlProcessingInstruction
       
     x@(SaxElementOpen _ _)  -> do print' "\n"
                                   printIdent (showElement x) 
@@ -324,14 +324,17 @@ printElem e = do
                                   printIdent (showElement x) 
                                   setLastElem LastElemCloseTag
                                   
-    x@(SaxComment s)        -> do print' "\n"
+    x@(SaxComment s)        -> do case lastElem st of
+                                    LastElemXmlProcessingInstruction -> unless (isEmacsInstructions s) (print' "\n")
+                                    _ -> print' "\n"
                                   printIdent (showElement x)
-                                  print' "\n"
                                   setLastElem LastElemComment
     x@(SaxReference r)      -> do print' $ showElement x
                                   setLastElem LastElemChars
     x                       -> print' $ showElement x
         
+    where isEmacsInstructions s = s =~ " -\\*- +.+:.+ -\\*- " :: Bool
+    
 
 
 printTree  :: StateT SaxState IO ()
