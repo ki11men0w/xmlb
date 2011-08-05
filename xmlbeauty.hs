@@ -209,7 +209,12 @@ showAttributes attrs =
     showAttributes' (a:as) = showAttr a : showAttributes' as
       where
         showAttr :: Attribute -> String
-        showAttr (name, AttValue attrvs) = name ++ "=\"" ++ showAttrValues attrvs ++ "\""
+        showAttr (attrName, AttValue attrvs) =
+          case attrName of
+            N name ->
+              name ++ "=\"" ++ showAttrValues attrvs ++ "\""
+            QN Namespace {nsPrefix=nsPrefix'} name ->
+              nsPrefix' ++ ":" ++ name ++ "=\"" ++ showAttrValues attrvs ++ "\""
           where
             showAttrValues :: [Either String Reference] -> String
             showAttrValues [] = []
