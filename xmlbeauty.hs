@@ -25,7 +25,9 @@ import Data.Maybe
 import Text.Regex.Posix
 
 import Data.Encoding
+import Codec.Text.IConv as IConv
 --import qualified Data.Encoding.ISO88591 as ISO88591
+import Data.Word
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Lazy as LBS
 
@@ -82,7 +84,7 @@ getOptions =
 
 
 
-getXmlEncoding :: BS.ByteString -> String
+getXmlEncoding :: LBS.ByteString -> String
 getXmlEncoding xml =
   case bomTest of
     Just s -> s
@@ -92,17 +94,17 @@ getXmlEncoding xml =
                 
     where bomTest :: Maybe String
           bomTest =
-            let utf8'BOM       = BS.pack [0xef, 0xbb, 0xbf]
-                utf16be'BOM    = BS.pack [0xFE, 0xFF]
-                utf16le'BOM    = BS.pack [0xFF, 0xFE]
-                utf32be'BOM    = BS.pack [0x00, 0x00, 0xFE, 0xFF]
-                utf32le'BOM    = BS.pack [0xFF, 0xFE, 0x00, 0x00]
-                utf7'BOMstart  = BS.pack [0x2B, 0x2F, 0x76]
-                utf1'BOM       = BS.pack [0xF7, 0x64, 0x4C]
-                utfEBCDIC'BOM  = BS.pack [0xDD, 0x73, 0x66, 0x73]
-                scsu'BOM       = BS.pack [0x0E, 0xFE, 0xFF]
-                bocu1'BOM      = BS.pack [0xFB, 0xEE, 0x28]
-                gb18030'BOM    = BS.pack [0x84, 0x31, 0x95, 0x33]
+            let utf8'BOM       = LBS.pack [0xef, 0xbb, 0xbf]
+                utf16be'BOM    = LBS.pack [0xFE, 0xFF]
+                utf16le'BOM    = LBS.pack [0xFF, 0xFE]
+                utf32be'BOM    = LBS.pack [0x00, 0x00, 0xFE, 0xFF]
+                utf32le'BOM    = LBS.pack [0xFF, 0xFE, 0x00, 0x00]
+                utf7'BOMstart  = LBS.pack [0x2B, 0x2F, 0x76]
+                utf1'BOM       = LBS.pack [0xF7, 0x64, 0x4C]
+                utfEBCDIC'BOM  = LBS.pack [0xDD, 0x73, 0x66, 0x73]
+                scsu'BOM       = LBS.pack [0x0E, 0xFE, 0xFF]
+                bocu1'BOM      = LBS.pack [0xFB, 0xEE, 0x28]
+                gb18030'BOM    = LBS.pack [0x84, 0x31, 0x95, 0x33]
                 
             in case 1 of
               _ 
@@ -114,13 +116,13 @@ getXmlEncoding xml =
                 | checkBOM utf7'BOMstart ->
                         -- Для UTF-7 последний символ BOM может содержать 
                         -- любой из четырех символов.
-                        let xml' = BS.drop (BS.length utf7'BOMstart) xml
+                        let xml' = LBS.drop (LBS.length utf7'BOMstart) xml
                         in case 1 of
                           _
                             -- Проверим что что строка не кончилась на первой части BOM
-                            | BS.null xml'  -> Nothing
+                            | LBS.null xml'  -> Nothing
                             -- Проверим входит ли наш символ в группу допустимых концов BOM
-                            | BS.head xml' `elem` [0x38, 0x39, 0x2B, 0x2F]    -> Just "UTF-7"
+                            | LBS.head xml' `elem` [0x38, 0x39, 0x2B, 0x2F]    -> Just "UTF-7"
                             | otherwise                                       -> Nothing
                 
                 | checkBOM utf1'BOM      -> Just "UTF-1"
@@ -131,13 +133,13 @@ getXmlEncoding xml =
 
                 | otherwise -> Nothing
               
-              where checkBOM bom = bom `BS.isPrefixOf` xml
+              where checkBOM bom = bom `LBS.isPrefixOf` xml
                   
           
           xmlDeclTest :: Maybe String
           xmlDeclTest =
             -- Считаем что по крайней мере до конца xml-заголовока идут только однобайтовые символы
-            let xml'  = decodeStrictByteString (encodingFromString "ISO-8859-1") (BS.take 1000 xml)
+            let xml'  = decodeLazyByteString (encodingFromString "ISO-8859-1") (LBS.take 1000 xml)
                 xml'' = dropWhile isSpace xml'
                 (_, _, _, enc) = xml'' =~ "<\\?xml .*encoding=\"(.+)\".*\\?>" :: (String, String, String, [String])
             in
@@ -146,19 +148,32 @@ getXmlEncoding xml =
                otherwise -> Nothing
                
 
+decode_ :: IConv.EncodingName -> LBS.ByteString -> String
+decode_ fromEncoding input =
+  ucs2_to_string input'
+  where input' = IConv.convert fromEncoding "UCS-2LE" input
+        ccc = LBS.cons
+        ucs2_to_string :: LBS.ByteString -> String
+        ucs2_to_string null = []
+        ucs2_to_string input = let f = LBS.head input
+                                   s = LBS.head $ LBS.tail input
+                                   x = (fromIntegral(f) + (fromIntegral(s) * 256))::Int
+                               in toEnum(x):ucs2_to_string(LBS.drop 2 input)
           
+
   
   
 
 parseDoc :: Handle -> FilePath -> Handle -> String -> IO ()
 parseDoc inH inFileName outH outputEncoding = do
-  x <- BS.hGetContents inH
+  x <- LBS.hGetContents inH
   parseDoc' x
     where
-      parseDoc' :: BS.ByteString -> IO ()
+      parseDoc' :: LBS.ByteString -> IO ()
       parseDoc' inpt = do
         
-        let (elms, xxx) = saxParse inFileName (decodeStrictByteString (encodingFromString $ getXmlEncoding inpt) inpt)
+--        let (elms, xxx) = saxParse inFileName (decodeStrictByteString (encodingFromString $ getXmlEncoding inpt) inpt)
+        let (elms, xxx) = saxParse inFileName (decode_ (getXmlEncoding inpt) inpt)
         
         (tmpName, tmpH) <- do
           tmpDir <- catch getTemporaryDirectory (\_ -> return ".")
