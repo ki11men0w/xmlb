@@ -32,11 +32,12 @@ import qualified Data.ByteString.Lazy as LBS
 version = "2.0.0.1 (haskell)"
 
 -- | Флаги коммандной строки
-data Flag = Backup | Encoding String| Quiet | Help | Version
+data Flag = Backup | Encoding String | Quiet | Help | Version | Spaces String
           deriving (Show, Eq)
 
 defaultInputEncoding  = "UTF-8"
 defaultOutputEncoding = "ISO-8859-1"
+defaultSpaceIdent = 3
 
 programOptions :: [OptDescr Flag]
 programOptions = [
@@ -44,8 +45,10 @@ programOptions = [
   Option "e" ["encoding"] (ReqArg Encoding "ENCODING") ("Encoding for output documents (default is " ++ defaultOutputEncoding ++")."),
   Option "q" ["quiet"]    (NoArg Quiet)    "Be quiet. Do not print warnings.",
   Option "h" ["help"]     (NoArg Help)     "Show this help message and exit.",
-  Option "v" ["version"]  (NoArg Version)  "Print version information and exit."
+  Option "v" ["version"]  (NoArg Version)  "Print version information and exit.",
+  Option "s" ["use-spaces"] (OptArg (Spaces . fromMaybe (show defaultSpaceIdent)) "LENGTH") ("Use this number of spaces instead tabs for identation\n(default is " ++ show defaultSpaceIdent ++ ").")
   ]
+
 
 programUsageInfo = do
   header <- getHeader
@@ -70,7 +73,10 @@ getOptions =
                                      exitWith ExitSuccess
          | Version `elem` opts -> do putStrLn (prog ++ " version " ++ version)
                                      exitWith ExitSuccess
-         | True                -> return ()
+         | True                -> case find isSpacesOpt opts of
+                                    Just (Spaces s) -> when (notInteger s) (error "Value for \"--use-spaces\" option must be integer!\n")
+                                    _ -> return ()
+             
      
      return (opts, inFileNames)
      
@@ -80,6 +86,13 @@ getOptions =
              (opt,fileNames,[]) -> return (opt, fileNames)
              (_,_,errs)         -> error $ concat (intersperse "\n" errs) ++ "\n" ++ usi
 
+    isSpacesOpt x =
+      case x of
+        Spaces _ -> True
+        _        -> False
+    
+    notInteger :: String -> Bool
+    notInteger = not . all isDigit
 
 
 getXmlEncoding :: BS.ByteString -> String
@@ -150,8 +163,8 @@ getXmlEncoding xml =
   
   
 
-parseDoc :: Handle -> FilePath -> Handle -> String -> IO ()
-parseDoc inH inFileName outH outputEncoding = do
+parseDoc :: Handle -> FilePath -> Handle -> String -> String -> IO ()
+parseDoc inH inFileName outH outputEncoding identString = do
   x <- BS.hGetContents inH
   parseDoc' x
     where
@@ -164,7 +177,7 @@ parseDoc inH inFileName outH outputEncoding = do
           tmpDir <- catch getTemporaryDirectory (\_ -> return ".")
           openBinaryTempFile tmpDir "xmlbeauty.xml" 
         
-        runStateT printTree SaxState {ident=0, elems=elms, lastElem = LastElemNothing, saveFunc = hPutStr tmpH, outputEncoding = outputEncoding}
+        runStateT printTree SaxState {identLevel=0, elems=elms, lastElem = LastElemNothing, saveFunc = hPutStr tmpH, outputEncoding = outputEncoding, identString = identString}
         hSeek tmpH AbsoluteSeek 0
         y <- hGetContents tmpH
         saveFuncEnc y
@@ -227,32 +240,33 @@ showAttributes attrs =
   
 
 data LastElem = LastElemNothing | LastElemXmlProcessingInstruction | LastElemOpenTag | LastElemCloseTag | LastElemChars | LastElemComment
-data SaxState = SaxState { ident :: Int,
+data SaxState = SaxState { identLevel :: Int,
                            elems :: [SaxElement],
                            lastElem :: LastElem,
                            saveFunc :: String -> IO (),
-                           outputEncoding :: String
+                           outputEncoding :: String,
+                           identString :: String
                          }
 
 setIdent :: Int -> StateT SaxState IO ()
 setIdent x = do
   z <- get
-  put $ z { ident = x }
+  put $ z { identLevel = x }
 
 getIdent :: StateT SaxState IO Int
 getIdent = do
   x <- get
-  return $ ident x
+  return $ identLevel x
   
 identMore :: StateT SaxState IO ()
 identMore = do
   x <- get
-  put $ x { ident = ident x +1 }
+  put $ x { identLevel = identLevel x +1 }
 
 identLess :: StateT SaxState IO ()
 identLess = do
   x <- get
-  put $ x { ident = ident x -1 }
+  put $ x { identLevel = identLevel x -1 }
   
 justIO :: IO () -> StateT SaxState IO ()
 justIO = liftIO
@@ -262,8 +276,9 @@ print' s = do st <- get
               justIO $ saveFunc st s
 
 printIdent :: String -> StateT SaxState IO ()
-printIdent s = do i <- getIdent
-                  print' $ replicate i '\t' ++ s
+printIdent s = do x <- get
+                  --print' $ replicate (identLevel x) '\t' ++ s
+                  print' $ concat (take (identLevel x) (repeat (identString x))) ++ s
 
 popElem :: StateT SaxState IO (Maybe SaxElement)
 popElem = do
@@ -372,7 +387,7 @@ processOneSource opts inFileName = do
   hSetBinaryMode inFileH True
   hSetBinaryMode outFileH True
   
-  parseDoc inFileH inFileDecoratedName outFileH outputEncoding
+  parseDoc inFileH inFileDecoratedName outFileH outputEncoding identString
   
   when inPlace $
     do hClose inFileH
@@ -391,6 +406,13 @@ processOneSource opts inFileName = do
       Encoding _ -> True
       _          -> False
         
+    identString =
+      case find isIdentString opts of
+        Just (Spaces s) -> replicate (read s :: Int) ' '
+        _               -> "\t"
+    isIdentString x = case x of
+      Spaces _  -> True
+      _         -> False
 
 main :: IO ()
 main = do
