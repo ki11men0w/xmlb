@@ -1,7 +1,8 @@
+{-# LANGUAGE DeriveDataTypeable #-}
 module Main where
 
 import System.Environment
-import System.Console.GetOpt
+import System.Console.CmdArgs
 import System.Exit
 --import Data.Maybe ( fromMaybe )
 import System.IO
@@ -29,71 +30,35 @@ import Data.Encoding
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Lazy as LBS
 
-version = "2.0.0.1 (haskell)"
-
--- | Флаги коммандной строки
-data Flag = Backup | Encoding String | Quiet | Help | Version | Spaces String
-          deriving (Show, Eq)
+programVersion = "2.0.0.2 (haskell)"
 
 defaultInputEncoding  = "UTF-8"
 defaultOutputEncoding = "ISO-8859-1"
 defaultSpaceIdent = 3
 
-programOptions :: [OptDescr Flag]
-programOptions = [
-  Option "b" ["backup"]   (NoArg Backup)   "Backup original files.",
-  Option "e" ["encoding"] (ReqArg Encoding "ENCODING") ("Encoding for output documents (default is " ++ defaultOutputEncoding ++")."),
-  Option "q" ["quiet"]    (NoArg Quiet)    "Be quiet. Do not print warnings.",
-  Option "h" ["help"]     (NoArg Help)     "Show this help message and exit.",
-  Option "v" ["version"]  (NoArg Version)  "Print version information and exit.",
-  Option "s" ["use-spaces"] (OptArg (Spaces . fromMaybe (show defaultSpaceIdent)) "LENGTH") ("Use this number of spaces instead tabs for identation\n(default is " ++ show defaultSpaceIdent ++ ").")
-  ]
 
+-- | Флаги коммандной строки
+data Flags = Flags
+             { backup :: Bool,
+               encoding :: Maybe String,
+               spaces :: Maybe Int,
+               inFileNames :: [String]
+             } deriving (Show, Data, Typeable)
+                                
+opts' = getProgName >>= \programName -> return $
+        Flags { backup   = def &= help "Backup original files",
+                encoding = def &= help ("Encoding for output documents (default is " ++ defaultOutputEncoding ++ ")")
+                               &= typ  "ENCODING",
+                spaces   = def &= help ("Use this number of spaces instead of tabs for identation (default is " ++ show defaultSpaceIdent ++ ")")
+                               &= opt (show defaultSpaceIdent),
+                inFileNames = def &= args &= typ "XMLFILE1 [XMLFILE2 ...]"
+              }
+        &= program programName
+        &= summary ("XML Beautifier version " ++ programVersion)
+        &= details ["Beautifies (makes human readable) xml file(s) inplace.",
+                    "usage: " ++ programName ++ " OPTIONS XMLFILE1 [XMLFILE2 ...]",
+                    "       " ++ programName ++ " OPTIONS < somefile.xml > somefile.xml"]
 
-programUsageInfo = do
-  header <- getHeader
-  return $ usageInfo header programOptions
-    where
-      getHeader = do
-        progName <- getProgName
-        return $ "Beautifies (makes human readable) xml file(s) inplace.\n" ++
-                 "usage: " ++ progName ++ " OPTIONS XMLFILE1 [XMLFILE2, ...]\n" ++
-                 "       " ++ progName ++ " OPTIONS < somefile.xml > somefile.xml"
-  
-getOptions :: IO ([Flag], [FilePath])
-getOptions =
-  do argv <- getArgs
-     prog <- getProgName
-     usi <- programUsageInfo
-     (opts, inFileNames) <- parseOptions argv usi
-     
-     when (Help `elem` opts) $ 
-       do putStrLn usi
-          exitWith ExitSuccess
-
-     when (Version `elem` opts) $
-       do putStrLn (prog ++ " version " ++ version)
-          exitWith ExitSuccess
-     
-     case find isSpacesOpt opts of
-       Just (Spaces s) -> when (notInteger s) (error "Value for \"--use-spaces\" option must be integer!\n")
-       _ -> return ()
-     
-     return (opts, inFileNames)
-     
-  where
-    parseOptions argv usi =
-           case getOpt Permute programOptions argv of
-             (opt,fileNames,[]) -> return (opt, fileNames)
-             (_,_,errs)         -> error $ concat (intersperse "\n" errs) ++ "\n" ++ usi
-
-    isSpacesOpt x =
-      case x of
-        Spaces _ -> True
-        _        -> False
-    
-    notInteger :: String -> Bool
-    notInteger = not . all isDigit
 
 
 getXmlEncoding :: BS.ByteString -> String
@@ -368,7 +333,7 @@ printTree  = do
                   printTree
       
 
-processOneSource :: [Flag] -> FilePath -> IO ()
+processOneSource :: Flags -> FilePath -> IO ()
 processOneSource opts inFileName = do
   tmpDir <- catch getTemporaryDirectory (\_ -> return ".")
   let inFileP = inFileName
@@ -393,43 +358,32 @@ processOneSource opts inFileName = do
   when inPlace $
     do hClose inFileH
        hClose outFileH
-       when (Backup `elem` opts) (renameFile inFileP $ addExtension inFileP "bak")
+       when (backup opts) (renameFile inFileP $ addExtension inFileP "bak")
        copyFile outFileP inFileP
        removeFile outFileP
             
   
   
   where
-    outputEncoding = case find isEncoding opts of
-      Just (Encoding enc) -> enc
-      _                   -> defaultOutputEncoding
-    isEncoding x = case x of
-      Encoding _ -> True
-      _          -> False
+    outputEncoding = fromMaybe defaultOutputEncoding (encoding opts)
         
     identString =
-      case find isIdentString opts of
-        Just (Spaces s) -> replicate (read s :: Int) ' '
+      case spaces opts of
+        Just i -> replicate i ' '
         _               -> "\t"
-    isIdentString x = case x of
-      Spaces _  -> True
-      _         -> False
 
 main :: IO ()
 main = do
-  
-  usi <- programUsageInfo
-  
   stdin_isatty  <- hIsTerminalDevice stdin
   stdout_isatty <- hIsTerminalDevice stdout
   let inPlace = stdin_isatty && stdout_isatty
   
-  (opts, inFileNames) <- getOptions
-  let inFileSources = if stdin_isatty && null inFileNames 
-                      then error $ "No input data\n" ++ usi
-                      else if null inFileNames
+  opts <- cmdArgs =<< opts'
+  let inFileSources = if stdin_isatty && null (inFileNames opts)
+                      then error "No input data"
+                      else if null (inFileNames opts)
                            then ["-"]
-                           else inFileNames
+                           else inFileNames opts
 
   mapM_ (processOneSource opts) inFileSources 
       
