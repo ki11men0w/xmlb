@@ -67,16 +67,17 @@ getOptions =
      usi <- programUsageInfo
      (opts, inFileNames) <- parseOptions argv usi
      
-     case 1 of
-       _ 
-         | Help    `elem` opts -> do putStrLn usi
-                                     exitWith ExitSuccess
-         | Version `elem` opts -> do putStrLn (prog ++ " version " ++ version)
-                                     exitWith ExitSuccess
-         | True                -> case find isSpacesOpt opts of
-                                    Just (Spaces s) -> when (notInteger s) (error "Value for \"--use-spaces\" option must be integer!\n")
-                                    _ -> return ()
-             
+     when (Help `elem` opts) $ 
+       do putStrLn usi
+          exitWith ExitSuccess
+
+     when (Version `elem` opts) $
+       do putStrLn (prog ++ " version " ++ version)
+          exitWith ExitSuccess
+     
+     case find isSpacesOpt opts of
+       Just (Spaces s) -> when (notInteger s) (error "Value for \"--use-spaces\" option must be integer!\n")
+       _ -> return ()
      
      return (opts, inFileNames)
      
