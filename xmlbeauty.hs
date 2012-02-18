@@ -3,7 +3,7 @@ module Main where
 
 import System.Environment
 import System.Console.CmdArgs
-import System.Exit
+--import System.Exit
 --import Data.Maybe ( fromMaybe )
 import System.IO
 import System.Directory
@@ -16,7 +16,7 @@ import Text.XML.HaXml.Types
 --import Text.XML.HaXml.Escape
 --import Text.XML.HaXml.XmlContent.Parser
 --import Control.Monad.Trans
-import Control.Monad
+--import Control.Monad
 import Control.Monad.State
 
 import Data.Char
@@ -25,10 +25,6 @@ import Data.Maybe
 --import Control.Exception (finally)
 import Text.Regex.Posix
 
-import Data.Encoding
---import qualified Data.Encoding.ISO88591 as ISO88591
-import qualified Data.ByteString as BS
-import qualified Data.ByteString.Lazy as LBS
 
 programVersion = "2.0.0.2 (haskell)"
 
@@ -40,18 +36,32 @@ defaultSpaceIdent = 3
 -- | Флаги коммандной строки
 data Flags = Flags
              { backup :: Bool,
-               encoding :: Maybe String,
+               output_encoding :: Maybe String,
+               input_encoding :: Maybe String,
                spaces :: Maybe Int,
                inFileNames :: [String]
              } deriving (Show, Data, Typeable)
                                 
 opts' = getProgName >>= \programName -> return $
-        Flags { backup   = def &= help "Backup original files",
-                encoding = def &= help ("Encoding for output documents (default is " ++ defaultOutputEncoding ++ ")")
-                               &= typ  "ENCODING",
-                spaces   = def &= help ("Use this number of spaces instead of tabs for identation (default is " ++ show defaultSpaceIdent ++ ")")
-                               &= opt (show defaultSpaceIdent),
-                inFileNames = def &= args &= typ "XMLFILE1 [XMLFILE2 ...]"
+        Flags { backup =
+                   def
+                   &= help "Backup original files",
+                output_encoding =
+                  def
+                  &= help ("Encoding for OUTPUT documents (default is " ++ defaultOutputEncoding ++ ")")
+                  &= explicit &= name "e" &= name "encoding" &= name "o"
+                  &= typ  "ENC",
+                input_encoding =
+                  def
+                  &= help "Encoding for INPUT documents. If not specified then try to realize it from document"
+                  &= typ  "ENC",
+                spaces =
+                  def
+                  &= help ("Use this number of spaces instead of tabs for identation (default is " ++ show defaultSpaceIdent ++ ")")
+                  &= opt (show defaultSpaceIdent),
+                
+                inFileNames =
+                  def &= args &= typ "XMLFILE1 [XMLFILE2 ...]"
               }
         &= program programName
         &= summary ("XML Beautifier version " ++ programVersion)
@@ -60,8 +70,9 @@ opts' = getProgName >>= \programName -> return $
                     "       " ++ programName ++ " OPTIONS < somefile.xml > somefile.xml"]
 
 
+type EncodingName = String
 
-getXmlEncoding :: BS.ByteString -> String
+getXmlEncoding :: String -> EncodingName
 getXmlEncoding xml =
   case bomTest of
     Just s -> s
@@ -71,36 +82,36 @@ getXmlEncoding xml =
                 
     where bomTest :: Maybe String
           bomTest =
-            let utf8'BOM       = BS.pack [0xef, 0xbb, 0xbf]
-                utf16be'BOM    = BS.pack [0xFE, 0xFF]
-                utf16le'BOM    = BS.pack [0xFF, 0xFE]
-                utf32be'BOM    = BS.pack [0x00, 0x00, 0xFE, 0xFF]
-                utf32le'BOM    = BS.pack [0xFF, 0xFE, 0x00, 0x00]
-                utf7'BOMstart  = BS.pack [0x2B, 0x2F, 0x76]
-                utf1'BOM       = BS.pack [0xF7, 0x64, 0x4C]
-                utfEBCDIC'BOM  = BS.pack [0xDD, 0x73, 0x66, 0x73]
-                scsu'BOM       = BS.pack [0x0E, 0xFE, 0xFF]
-                bocu1'BOM      = BS.pack [0xFB, 0xEE, 0x28]
-                gb18030'BOM    = BS.pack [0x84, 0x31, 0x95, 0x33]
+            let utf8'BOM       = map chr [0xef, 0xbb, 0xbf]
+                utf16be'BOM    = map chr [0xFE, 0xFF]
+                utf16le'BOM    = map chr [0xFF, 0xFE]
+                utf32be'BOM    = map chr [0x00, 0x00, 0xFE, 0xFF]
+                utf32le'BOM    = map chr [0xFF, 0xFE, 0x00, 0x00]
+                utf7'BOMstart  = map chr [0x2B, 0x2F, 0x76]
+                utf1'BOM       = map chr [0xF7, 0x64, 0x4C]
+                utfEBCDIC'BOM  = map chr [0xDD, 0x73, 0x66, 0x73]
+                scsu'BOM       = map chr [0x0E, 0xFE, 0xFF]
+                bocu1'BOM      = map chr [0xFB, 0xEE, 0x28]
+                gb18030'BOM    = map chr [0x84, 0x31, 0x95, 0x33]
                 
             in case 1 of
               _ 
                 | checkBOM utf8'BOM      -> Just "UTF-8"
-                | checkBOM utf16be'BOM   -> Just "UTF-16"
-                | checkBOM utf16le'BOM   -> Just "UTF-16"
-                | checkBOM utf32be'BOM   -> Just "UTF-32"
-                | checkBOM utf32le'BOM   -> Just "UTF-32"
+                | checkBOM utf16be'BOM   -> Just "UTF-16BE"
+                | checkBOM utf16le'BOM   -> Just "UTF-16LE"
+                | checkBOM utf32be'BOM   -> Just "UTF-32BE"
+                | checkBOM utf32le'BOM   -> Just "UTF-32LE"
                 | checkBOM utf7'BOMstart ->
                         -- Для UTF-7 последний символ BOM может содержать 
                         -- любой из четырех символов.
-                        let xml' = BS.drop (BS.length utf7'BOMstart) xml
+                        let xml' = drop (length utf7'BOMstart) xml
                         in case 1 of
                           _
                             -- Проверим что что строка не кончилась на первой части BOM
-                            | BS.null xml'  -> Nothing
+                            | null xml'  -> Nothing
                             -- Проверим входит ли наш символ в группу допустимых концов BOM
-                            | BS.head xml' `elem` [0x38, 0x39, 0x2B, 0x2F]    -> Just "UTF-7"
-                            | otherwise                                       -> Nothing
+                            | head xml' `elem` map chr [0x38, 0x39, 0x2B, 0x2F]    -> Just "UTF-7"
+                            | otherwise                                    -> Nothing
                 
                 | checkBOM utf1'BOM      -> Just "UTF-1"
                 | checkBOM utfEBCDIC'BOM -> Just "UTF-EBCDIC"
@@ -110,14 +121,13 @@ getXmlEncoding xml =
 
                 | otherwise -> Nothing
               
-              where checkBOM bom = bom `BS.isPrefixOf` xml
+              where checkBOM bom = bom `isPrefixOf` xml
                   
           
           xmlDeclTest :: Maybe String
           xmlDeclTest =
             -- Считаем что по крайней мере до конца xml-заголовока идут только однобайтовые символы
-            let xml'  = decodeStrictByteString (encodingFromString "ISO-8859-1") (BS.take 1000 xml)
-                xml'' = dropWhile isSpace xml'
+            let xml'' = dropWhile isSpace $ take 1000 xml
                 (_, _, _, enc) = xml'' =~ "<\\?xml .*encoding=\"(.+)\".*\\?>" :: (String, String, String, [String])
             in
              case enc of
@@ -125,36 +135,92 @@ getXmlEncoding xml =
                otherwise -> Nothing
                
 
-          
+
+mkTextEncoding' :: EncodingName -> IO TextEncoding       
+mkTextEncoding' en = 
+  -- Если кодировка совпадает с одной из обязательно реализованных в стандартной
+  -- библиотеке то выбираем ее явно, если нет, то используем mkTextEncoding
+  case normalized of
+    "ISO88591" -> return latin1
+    "UTF8"     -> return utf8
+    "UTF16"    -> return utf16
+    "UTF16LE"  -> return utf16le
+    "UTF16BE"  -> return utf16be
+    "UTF32LE"  -> return utf32le
+    "UTF32BE"  -> return utf32be
+    _          -> error normalized -- mkTextEncoding (map toUpper en)
+    
+    where normalized = filter (\x -> not $ elem x "_- ") (map toUpper en)  
+
+-- Возвращает имя кодировки для вставки в атрибут encoding заголовка XML
+getEncodingName4XmlHeader :: EncodingName -> String
+getEncodingName4XmlHeader en =
+  case normalized of
+    "UTF16LE" -> "UTF-16"
+    "UTF16BE" -> "UTF-16"
+    "UTF32LE" -> "UTF-32"
+    "UTF32BE" -> "UTF-32"
+    _         -> en
+    
+    where normalized = filter (\x -> not $ elem x "_- ") (map toUpper en)  
+
+parseDoc :: Handle -> FilePath -> Handle ->Maybe EncodingName -> EncodingName -> String -> IO ()
+parseDoc inH inFileName outH inputEncoding outputEncoding identString = do
   
+  hSetBinaryMode inH True
+  
+  let getInputEncoding :: IO (EncodingName, String )
+      getInputEncoding = case inputEncoding of
+        Just e -> return (e, "")
+        Nothing -> do inpt <- foldl (>>=) (return "") (take 1000 (repeat (\x -> hGetChar inH >>= \y -> return $ x ++ [y])))
+                      let enc = getXmlEncoding inpt
+                      return (enc, inpt)
+          
+  (inputEncodingName, inpt') <- getInputEncoding
+  inputEncoding <- mkTextEncoding' inputEncodingName
+  
+  (tmpName', tmpH') <- do
+    tmpDir <- catch getTemporaryDirectory (\_ -> return ".")
+    openTempFile tmpDir "xmlbeauty.header" 
+  
+  inpt'' <-
+    if null inpt' then
+      do hClose tmpH'
+         return ""
+    else
+      do hSetBinaryMode tmpH' True
+         hPutStr tmpH' inpt'
+         hSeek tmpH' AbsoluteSeek 0
+         hSetEncoding tmpH' inputEncoding
+         hGetContents tmpH'
   
 
-parseDoc :: Handle -> FilePath -> Handle -> String -> String -> IO ()
-parseDoc inH inFileName outH outputEncoding identString = do
-  inpt <- BS.hGetContents inH
-  let (elms, xxx) = saxParse inFileName (decodeStrictByteString (encodingFromString $ getXmlEncoding inpt) inpt)
+  hSetEncoding inH inputEncoding
+  inpt <- hGetContents inH
+  
+  let (elms, xxx) = saxParse inFileName (inpt'' ++ inpt)
   
   (tmpName, tmpH) <- do
     tmpDir <- catch getTemporaryDirectory (\_ -> return ".")
-    openBinaryTempFile tmpDir "xmlbeauty.xml" 
+    openTempFile tmpDir "xmlbeauty.xml" 
   
-  runStateT printTree SaxState {identLevel=0, elems=elms, lastElem = LastElemNothing, saveFunc = hPutStr tmpH, outputEncoding = outputEncoding, identString = identString}
+  hSetEncoding tmpH =<< mkTextEncoding' outputEncoding
+
+  runStateT printTree SaxState {identLevel=0, elems=elms, lastElem = LastElemNothing, saveFunc = hPutStr tmpH, outputEncoding = getEncodingName4XmlHeader outputEncoding, identString = identString}
   hSeek tmpH AbsoluteSeek 0
+  hSetBinaryMode tmpH True
+
   y <- hGetContents tmpH
-  saveFuncEnc y
+  hPutStr outH y
   hClose tmpH
   removeFile tmpName
+  hClose tmpH'
+  removeFile tmpName'
     
   case xxx of
     Just s -> error s
     _      -> return ()
        
-  
-    where
-      saveFuncEnc = LBS.hPutStr outH . encodeLazyByteString (encodingFromString outputEncoding)
-
-
-
 
 showElement :: SaxElement -> String
 showElement (SaxProcessingInstruction (target, value)) =  "<?" ++ target ++ " " ++ value ++ "?>"
@@ -348,7 +414,7 @@ processOneSource opts inFileName = do
   hSetBinaryMode inFileH True
   hSetBinaryMode outFileH True
   
-  parseDoc inFileH inFileDecoratedName outFileH outputEncoding identString
+  parseDoc inFileH inFileDecoratedName outFileH inputEncoding outputEncoding identString
   
   when inPlace $
     do hClose inFileH
@@ -360,8 +426,9 @@ processOneSource opts inFileName = do
   
   
   where
-    outputEncoding = fromMaybe defaultOutputEncoding (encoding opts)
-        
+    outputEncoding = fromMaybe defaultOutputEncoding (output_encoding opts)
+    inputEncoding = input_encoding opts
+                     
     identString =
       case spaces opts of
         Just i -> replicate i ' '
