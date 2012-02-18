@@ -131,32 +131,27 @@ getXmlEncoding xml =
 
 parseDoc :: Handle -> FilePath -> Handle -> String -> String -> IO ()
 parseDoc inH inFileName outH outputEncoding identString = do
-  x <- BS.hGetContents inH
-  parseDoc' x
+  inpt <- BS.hGetContents inH
+  let (elms, xxx) = saxParse inFileName (decodeStrictByteString (encodingFromString $ getXmlEncoding inpt) inpt)
+  
+  (tmpName, tmpH) <- do
+    tmpDir <- catch getTemporaryDirectory (\_ -> return ".")
+    openBinaryTempFile tmpDir "xmlbeauty.xml" 
+  
+  runStateT printTree SaxState {identLevel=0, elems=elms, lastElem = LastElemNothing, saveFunc = hPutStr tmpH, outputEncoding = outputEncoding, identString = identString}
+  hSeek tmpH AbsoluteSeek 0
+  y <- hGetContents tmpH
+  saveFuncEnc y
+  hClose tmpH
+  removeFile tmpName
+    
+  case xxx of
+    Just s -> error s
+    _      -> return ()
+       
+  
     where
-      parseDoc' :: BS.ByteString -> IO ()
-      parseDoc' inpt = do
-        
-        let (elms, xxx) = saxParse inFileName (decodeStrictByteString (encodingFromString $ getXmlEncoding inpt) inpt)
-        
-        (tmpName, tmpH) <- do
-          tmpDir <- catch getTemporaryDirectory (\_ -> return ".")
-          openBinaryTempFile tmpDir "xmlbeauty.xml" 
-        
-        runStateT printTree SaxState {identLevel=0, elems=elms, lastElem = LastElemNothing, saveFunc = hPutStr tmpH, outputEncoding = outputEncoding, identString = identString}
-        hSeek tmpH AbsoluteSeek 0
-        y <- hGetContents tmpH
-        saveFuncEnc y
-        hClose tmpH
-        removeFile tmpName
-          
-        case xxx of
-          Just s -> error s
-          _      -> return ()
-             
-        
-          where
-            saveFuncEnc = LBS.hPutStr outH . encodeLazyByteString (encodingFromString outputEncoding)
+      saveFuncEnc = LBS.hPutStr outH . encodeLazyByteString (encodingFromString outputEncoding)
 
 
 
