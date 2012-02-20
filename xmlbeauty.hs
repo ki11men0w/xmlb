@@ -72,6 +72,109 @@ opts' = getProgName >>= \programName -> return $
 
 type EncodingName = String
 
+data BomTestResult = FullyMatch EncodingName | SemiMatch EncodingName | NotMatch
+                   deriving (Show)
+
+getXmlEncoding' :: Handle -> IO (EncodingName, String)
+getXmlEncoding' inH = do
+  t <- bomTest'
+  case t of
+    (Just e, s)  -> return (e, s)
+    (Nothing, s) -> xmlDeclTest s >>= \t ->
+                    case t of
+                      (Just e, s)  -> return (e, s)
+                      (Nothing, s) -> return ("ISO-8859-1", s) -- т.к. мы читали побайтно, то необходимо вернуть однобайтную кодировку
+  where
+    bomTest' :: IO (Maybe EncodingName, String)
+    bomTest' = do
+      cr <- checkNextByte ""
+      case cr of
+        (FullyMatch enc, s) -> return (Just enc, s)
+        (NotMatch, s)       -> return (Nothing, s)
+      where
+        checkNextByte :: String -> IO (BomTestResult, String)
+        checkNextByte s = hIsEOF inH >>= \eof ->
+                          if eof then return (NotMatch, s)
+                          else do
+                            test_str <- hGetChar inH >>= \c -> return $ s ++ [c]
+                            let bt = bomTest test_str
+                            --hPutStrLn stderr ((show bt) ++ ": '" ++ (concat $ intersperse "," (map (show . ord) (take 20 test_str))) ++ "'")
+                            case bomTest test_str of
+                              x@(NotMatch)     -> return (x, test_str)
+                              x@(FullyMatch e) -> return (x, "")
+                              x@(SemiMatch _)  -> checkNextByte test_str
+          
+          where bomTest :: String -> BomTestResult
+                bomTest xml =
+                  let utf8'BOM       = map chr [0xef, 0xbb, 0xbf]
+                      utf16be'BOM    = map chr [0xFE, 0xFF]
+                      utf16le'BOM    = map chr [0xFF, 0xFE]
+                      utf32be'BOM    = map chr [0x00, 0x00, 0xFE, 0xFF]
+                      utf32le'BOM    = map chr [0xFF, 0xFE, 0x00, 0x00]
+                      utf7'BOMstart  = map chr [0x2B, 0x2F, 0x76]
+                      utf1'BOM       = map chr [0xF7, 0x64, 0x4C]
+                      utfEBCDIC'BOM  = map chr [0xDD, 0x73, 0x66, 0x73]
+                      scsu'BOM       = map chr [0x0E, 0xFE, 0xFF]
+                      bocu1'BOM      = map chr [0xFB, 0xEE, 0x28]
+                      gb18030'BOM    = map chr [0x84, 0x31, 0x95, 0x33]
+                      
+                      tests = [checkBOM utf8'BOM "UTF-8",
+                               checkBOM utf16be'BOM "UTF-16BE",
+                               checkBOM utf16le'BOM  "UTF-16LE",
+                               checkBOM utf32be'BOM  "UTF-32BE",
+                               checkBOM utf32le'BOM  "UTF-32LE",
+                               check_utf7'BOM,
+                               checkBOM utf1'BOM "UTF-1",
+                               checkBOM utfEBCDIC'BOM "UTF-EBCDIC",
+                               checkBOM scsu'BOM "SCSU",
+                               checkBOM bocu1'BOM "BOCU-1",
+                               checkBOM gb18030'BOM "GB18030"]
+                     
+                      checkBOM bom enc = case 1 of
+                            _
+                              | bom `isPrefixOf` xml -> FullyMatch enc
+                              | xml `isPrefixOf` bom -> SemiMatch enc
+                              | otherwise -> NotMatch
+                          
+                      check_utf7'BOM =
+                            if xml `isPrefixOf` utf7'BOMstart then
+                              -- Для UTF-7 последний символ BOM может содержать 
+                              -- любой из четырех символов.
+                              let xml' = drop (length utf7'BOMstart) xml
+                              in case 1 of
+                                _
+                                  -- Проверим что что строка не кончилась на первой части BOM
+                                  | null xml'  -> SemiMatch "UTF-7"
+                                  -- Проверим входит ли наш символ в группу допустимых концов BOM
+                                  | head xml' `elem` map chr [0x38, 0x39, 0x2B, 0x2F] -> FullyMatch "UTF-7"
+                                  | otherwise -> NotMatch
+                            else NotMatch
+                      fully_matched = find (\x -> case x of; FullyMatch enc -> True; otherwithe -> False) tests
+                      semi_matched  = find (\x -> case x of; SemiMatch enc -> True; otherwithe -> False) tests
+                      
+                  in case fully_matched of
+                    Just x -> x
+                    Nothing -> case semi_matched of
+                      Just x -> x
+                      Nothing -> NotMatch
+
+    xmlDeclTest :: String -> IO (Maybe EncodingName, String)
+    xmlDeclTest already_read_str = do
+      -- Считаем что по крайней мере до конца xml-заголовока идут только однобайтовые символы
+      eof <- hIsEOF inH
+      case 1 of
+        _
+          | eof -> return (Nothing, already_read_str)
+          | length already_read_str > 1000 -> return (Nothing, already_read_str)
+          | True -> do new_str <- hGetChar inH >>= \c -> return $ already_read_str ++ [c]
+                       let test_str = dropWhile isSpace new_str
+                           (_, _, _, enc) = test_str =~ "<\\?xml .*encoding=\"(.+)\".*\\?>" :: (String, String, String, [String])
+                       case enc of
+                         e:es       -> return (Just e, new_str)
+                         otherwithe -> xmlDeclTest new_str
+                                        
+              
+
 getXmlEncoding :: String -> EncodingName
 getXmlEncoding xml =
   case bomTest of
@@ -148,7 +251,7 @@ mkTextEncoding' en =
     "UTF16BE"  -> return utf16be
     "UTF32LE"  -> return utf32le
     "UTF32BE"  -> return utf32be
-    _          -> error normalized -- mkTextEncoding (map toUpper en)
+    _          -> mkTextEncoding (map toUpper en)
     
     where normalized = filter (\x -> not $ elem x "_- ") (map toUpper en)  
 
@@ -169,12 +272,13 @@ parseDoc inH inFileName outH inputEncoding outputEncoding identString = do
   
   hSetBinaryMode inH True
   
-  let getInputEncoding :: IO (EncodingName, String )
+  let getInputEncoding :: IO (EncodingName, String)
       getInputEncoding = case inputEncoding of
         Just e -> return (e, "")
-        Nothing -> do inpt <- foldl (>>=) (return "") (take 1000 (repeat (\x -> hGetChar inH >>= \y -> return $ x ++ [y])))
-                      let enc = getXmlEncoding inpt
-                      return (enc, inpt)
+        Nothing -> do --inpt <- foldl (>>=) (return "") (take 1000 (repeat (\x -> hGetChar inH >>= \y -> return $ x ++ [y])))
+                      (e,s) <- getXmlEncoding' inH
+                      -- error $ "enc:" ++ e ++ " str:'" ++ s ++ "'"
+                      return (e,s)
           
   (inputEncodingName, inpt') <- getInputEncoding
   inputEncoding <- mkTextEncoding' inputEncodingName
@@ -197,6 +301,8 @@ parseDoc inH inFileName outH inputEncoding outputEncoding identString = do
 
   hSetEncoding inH inputEncoding
   inpt <- hGetContents inH
+  
+  --hPutStrLn stderr (concat $ intersperse "," (map (show . ord) (take 20 inpt'')))
   
   let (elms, xxx) = saxParse inFileName (inpt'' ++ inpt)
   
