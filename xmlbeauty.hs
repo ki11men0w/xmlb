@@ -367,8 +367,8 @@ showElement _                                          =  ""
 
 showSaxProcessingInstruction :: SaxElement -> String -> String
 showSaxProcessingInstruction (SaxProcessingInstruction (target, value)) encodingName =
-  let (pre, match, post) = value =~ "encoding=\"[^\"]+\"" :: (String, String, String)
-  in "<?" ++ target ++ " " ++ pre ++ "encoding=\"" ++ encodingName ++ "\"" ++ post ++ "?>"
+  let (pre, match, post) = value =~ "[ \t]+encoding=\"[^\"]+\"" :: (String, String, String)
+  in "<?" ++ target ++ " " ++ pre ++ " encoding=\"" ++ encodingName ++ "\"" ++ post ++ "?>"
 
 showAttributes :: [Attribute] -> String
 showAttributes [] = ""
