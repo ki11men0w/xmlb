@@ -1,4 +1,5 @@
 {-# LANGUAGE DeriveDataTypeable #-}
+{-# LANGUAGE BangPatterns #-}
 module Main where
 
 import System.Environment
@@ -25,6 +26,13 @@ import Data.Maybe
 --import Control.Exception (finally)
 import Text.Regex.Posix
 
+import qualified Data.ByteString as BS
+import qualified Data.ByteString.Char8 as C8
+
+import qualified Data.Text as TXT
+import Data.Text.Encoding
+
+import Control.Parallel.Strategies (rdeepseq, withStrategy)
 
 programVersion = "2.0.0.2 (haskell)"
 
@@ -75,48 +83,45 @@ type EncodingName = String
 data BomTestResult = FullyMatch EncodingName | SemiMatch EncodingName | NotMatch
                    deriving (Show)
 
-getXmlEncoding' :: Handle -> IO (EncodingName, String)
+getXmlEncoding' :: Handle -> IO (Maybe EncodingName, BS.ByteString)
 getXmlEncoding' inH = do
   t <- bomTest'
   case t of
-    (Just e, s)  -> return (e, s)
-    (Nothing, s) -> xmlDeclTest s >>= \t ->
-                    case t of
-                      (Just e, s)  -> return (e, s)
-                      (Nothing, s) -> return ("ISO-8859-1", s) -- т.к. мы читали побайтно, то необходимо вернуть однобайтную кодировку
+    (Just e, s)  -> return (Just e, s)
+    (Nothing, s) -> xmlDeclTest s
   where
-    bomTest' :: IO (Maybe EncodingName, String)
+    bomTest' :: IO (Maybe EncodingName, BS.ByteString)
     bomTest' = do
-      cr <- checkNextByte ""
+      cr <- checkNextByte $ BS.empty
       case cr of
         (FullyMatch enc, s) -> return (Just enc, s)
         (NotMatch, s)       -> return (Nothing, s)
       where
-        checkNextByte :: String -> IO (BomTestResult, String)
+        checkNextByte :: BS.ByteString -> IO (BomTestResult, BS.ByteString)
         checkNextByte s = hIsEOF inH >>= \eof ->
                           if eof then return (NotMatch, s)
                           else do
-                            test_str <- hGetChar inH >>= \c -> return $ s ++ [c]
+                            test_str <- BS.hGet inH 1 >>= \c -> return $ BS.concat [s, c]
                             let bt = bomTest test_str
                             --hPutStrLn stderr ((show bt) ++ ": '" ++ (concat $ intersperse "," (map (show . ord) (take 20 test_str))) ++ "'")
                             case bomTest test_str of
                               x@(NotMatch)     -> return (x, test_str)
-                              x@(FullyMatch e) -> return (x, "")
+                              x@(FullyMatch e) -> return (x, BS.empty)
                               x@(SemiMatch _)  -> checkNextByte test_str
           
-          where bomTest :: String -> BomTestResult
+          where bomTest :: BS.ByteString -> BomTestResult
                 bomTest xml =
-                  let utf8'BOM       = map chr [0xef, 0xbb, 0xbf]
-                      utf16be'BOM    = map chr [0xFE, 0xFF]
-                      utf16le'BOM    = map chr [0xFF, 0xFE]
-                      utf32be'BOM    = map chr [0x00, 0x00, 0xFE, 0xFF]
-                      utf32le'BOM    = map chr [0xFF, 0xFE, 0x00, 0x00]
-                      utf7'BOMstart  = map chr [0x2B, 0x2F, 0x76]
-                      utf1'BOM       = map chr [0xF7, 0x64, 0x4C]
-                      utfEBCDIC'BOM  = map chr [0xDD, 0x73, 0x66, 0x73]
-                      scsu'BOM       = map chr [0x0E, 0xFE, 0xFF]
-                      bocu1'BOM      = map chr [0xFB, 0xEE, 0x28]
-                      gb18030'BOM    = map chr [0x84, 0x31, 0x95, 0x33]
+                  let utf8'BOM       = BS.pack [0xef, 0xbb, 0xbf]
+                      utf16be'BOM    = BS.pack [0xFE, 0xFF]
+                      utf16le'BOM    = BS.pack [0xFF, 0xFE]
+                      utf32be'BOM    = BS.pack [0x00, 0x00, 0xFE, 0xFF]
+                      utf32le'BOM    = BS.pack [0xFF, 0xFE, 0x00, 0x00]
+                      utf7'BOMstart  = BS.pack [0x2B, 0x2F, 0x76]
+                      utf1'BOM       = BS.pack [0xF7, 0x64, 0x4C]
+                      utfEBCDIC'BOM  = BS.pack [0xDD, 0x73, 0x66, 0x73]
+                      scsu'BOM       = BS.pack [0x0E, 0xFE, 0xFF]
+                      bocu1'BOM      = BS.pack [0xFB, 0xEE, 0x28]
+                      gb18030'BOM    = BS.pack [0x84, 0x31, 0x95, 0x33]
                       
                       tests = [checkBOM utf8'BOM "UTF-8",
                                checkBOM utf16be'BOM "UTF-16BE",
@@ -132,21 +137,21 @@ getXmlEncoding' inH = do
                      
                       checkBOM bom enc = case 1 of
                             _
-                              | bom `isPrefixOf` xml -> FullyMatch enc
-                              | xml `isPrefixOf` bom -> SemiMatch enc
+                              | BS.isPrefixOf bom xml -> FullyMatch enc
+                              | BS.isPrefixOf xml bom -> SemiMatch enc
                               | otherwise -> NotMatch
                           
                       check_utf7'BOM =
-                            if xml `isPrefixOf` utf7'BOMstart then
+                            if BS.isPrefixOf xml utf7'BOMstart then
                               -- Для UTF-7 последний символ BOM может содержать 
                               -- любой из четырех символов.
-                              let xml' = drop (length utf7'BOMstart) xml
+                              let xml' = BS.drop (BS.length utf7'BOMstart) xml
                               in case 1 of
                                 _
                                   -- Проверим что что строка не кончилась на первой части BOM
-                                  | null xml'  -> SemiMatch "UTF-7"
+                                  | BS.null xml'  -> SemiMatch "UTF-7"
                                   -- Проверим входит ли наш символ в группу допустимых концов BOM
-                                  | head xml' `elem` map chr [0x38, 0x39, 0x2B, 0x2F] -> FullyMatch "UTF-7"
+                                  | BS.elem (BS.head xml') (BS.pack [0x38, 0x39, 0x2B, 0x2F]) -> FullyMatch "UTF-7"
                                   | otherwise -> NotMatch
                             else NotMatch
                       fully_matched = find (\x -> case x of; FullyMatch enc -> True; otherwithe -> False) tests
@@ -158,20 +163,26 @@ getXmlEncoding' inH = do
                       Just x -> x
                       Nothing -> NotMatch
 
-    xmlDeclTest :: String -> IO (Maybe EncodingName, String)
+    xmlDeclTest :: BS.ByteString -> IO (Maybe EncodingName, BS.ByteString)
     xmlDeclTest already_read_str = do
       -- Считаем что по крайней мере до конца xml-заголовока идут только однобайтовые символы
       eof <- hIsEOF inH
       case 1 of
         _
           | eof -> return (Nothing, already_read_str)
-          | length already_read_str > 1000 -> return (Nothing, already_read_str)
-          | True -> do new_str <- hGetChar inH >>= \c -> return $ already_read_str ++ [c]
-                       let test_str = dropWhile isSpace new_str
+          | BS.length already_read_str > 1000 -> return (Nothing, already_read_str)
+          | True -> do new_str <- BS.hGet inH howMatchRead >>= \c -> return $ BS.concat [already_read_str, c]
+                       let test_str = dropWhile isSpace $ C8.unpack new_str
                            (_, _, _, enc) = test_str =~ "<\\?xml .*encoding=\"(.+)\".*\\?>" :: (String, String, String, [String])
                        case enc of
                          e:es       -> return (Just e, new_str)
                          otherwithe -> xmlDeclTest new_str
+
+            where howMatchRead = if already_read_str_length < min_length
+                                 then min_length - already_read_str_length
+                                 else 1
+                                   where min_length = length "<?xml encoding=\".\"?>"
+                                         already_read_str_length = BS.length already_read_str
                                         
               
 
@@ -267,44 +278,59 @@ getEncodingName4XmlHeader en =
     
     where normalized = filter (\x -> not $ elem x "_- ") (map toUpper en)  
 
+
 parseDoc :: Handle -> FilePath -> Handle ->Maybe EncodingName -> EncodingName -> String -> IO ()
 parseDoc inH inFileName outH inputEncoding outputEncoding identString = do
   
   hSetBinaryMode inH True
   
-  let getInputEncoding :: IO (EncodingName, String)
+  let getInputEncoding :: IO (Maybe EncodingName, BS.ByteString)
       getInputEncoding = case inputEncoding of
-        Just e -> return (e, "")
-        Nothing -> do --inpt <- foldl (>>=) (return "") (take 1000 (repeat (\x -> hGetChar inH >>= \y -> return $ x ++ [y])))
-                      (e,s) <- getXmlEncoding' inH
-                      -- error $ "enc:" ++ e ++ " str:'" ++ s ++ "'"
-                      return (e,s)
+        Just e -> return (Just e, BS.empty)
+        Nothing -> getXmlEncoding' inH
           
-  (inputEncodingName, inpt') <- getInputEncoding
-  inputEncoding <- mkTextEncoding' inputEncodingName
+  (inputEncodingName', inpt') <- getInputEncoding
+  inpt <- case inputEncodingName' of
+        Just inputEncodingName -> do
+    
+          inputEncoding <- mkTextEncoding' inputEncodingName
+      
+          (tmpName', tmpH') <- do
+            tmpDir <- catch getTemporaryDirectory (\_ -> return ".")
+            openTempFile tmpDir "xmlbeauty.header" 
+          
+          !inpt' <-
+            if BS.null inpt' then
+              do hClose tmpH'
+                 return ""
+            else
+              do hSetBinaryMode tmpH' True
+                 BS.hPutStr tmpH' inpt'
+                 hSeek tmpH' AbsoluteSeek 0
+                 hSetEncoding tmpH' inputEncoding
+                 -- Все эти strict* для того что-бы можно было закрыть файл
+                 -- tmpName' сразуже
+                 (withStrategy rdeepseq) `liftM` hGetContents tmpH'
+                     
+          hClose tmpH'
+          removeFile tmpName'
+        
+          hSetEncoding inH inputEncoding
+          inpt'' <- hGetContents inH
+          return $ inpt' ++ inpt''
+        
+        Nothing -> do
+          -- Если кодировку определить не смогли, то считаем, что
+          -- входной поток данных в UTF-8. Нам необходимо
+          -- раскодировать из UTF-8 не только еще не прочитанную часть
+          -- файла, но и небольшую зачитанную заголовачную
+          -- часть. Т.к. механизм чтения (Prelude.hGetContents и
+          -- hSetEncoding) не позволяет это сделать, то используем
+          -- здесь функционал Data.Text.Encoding.
+          inpt'' <- BS.hGetContents inH
+          return $ TXT.unpack $ decodeUtf8 $ BS.append inpt' inpt''
   
-  (tmpName', tmpH') <- do
-    tmpDir <- catch getTemporaryDirectory (\_ -> return ".")
-    openTempFile tmpDir "xmlbeauty.header" 
-  
-  inpt'' <-
-    if null inpt' then
-      do hClose tmpH'
-         return ""
-    else
-      do hSetBinaryMode tmpH' True
-         hPutStr tmpH' inpt'
-         hSeek tmpH' AbsoluteSeek 0
-         hSetEncoding tmpH' inputEncoding
-         hGetContents tmpH'
-  
-
-  hSetEncoding inH inputEncoding
-  inpt <- hGetContents inH
-  
-  --hPutStrLn stderr (concat $ intersperse "," (map (show . ord) (take 20 inpt'')))
-  
-  let (elms, xxx) = saxParse inFileName (inpt'' ++ inpt)
+  let (elms, xxx) = saxParse inFileName (inpt)
   
   (tmpName, tmpH) <- do
     tmpDir <- catch getTemporaryDirectory (\_ -> return ".")
@@ -320,8 +346,6 @@ parseDoc inH inFileName outH inputEncoding outputEncoding identString = do
   hPutStr outH y
   hClose tmpH
   removeFile tmpName
-  hClose tmpH'
-  removeFile tmpName'
     
   case xxx of
     Just s -> error s
