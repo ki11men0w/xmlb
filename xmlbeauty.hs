@@ -173,9 +173,10 @@ getXmlEncoding' inH = do
           | BS.length already_read_str > 1000 -> return (Nothing, already_read_str)
           | True -> do new_str <- BS.hGet inH howMatchRead >>= \c -> return $ BS.concat [already_read_str, c]
                        let test_str = dropWhile isSpace $ C8.unpack new_str
-                           (_, _, _, enc) = test_str =~ "<\\?xml .*encoding=\"(.+)\".*\\?>" :: (String, String, String, [String])
+                           (_, _, _, enc) = test_str =~ "<\\?xml[ \t](.*encoding=\"(.+)\")?.*\\?>" :: (String, String, String, [String])
                        case enc of
-                         e:es       -> return (Just e, new_str)
+                         _:"":_     -> return (Nothing, new_str)
+                         _:e:_      -> return (Just e, new_str)
                          otherwithe -> xmlDeclTest new_str
 
             where howMatchRead = if already_read_str_length < min_length
