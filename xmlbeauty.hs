@@ -61,7 +61,7 @@ opts' = getProgName >>= \programName -> return $
                   &= typ  "ENC",
                 input_encoding =
                   def
-                  &= help "Encoding for INPUT documents. If not specified then try to realize it from document"
+                  &= help "Encoding for INPUT documents. If not specified then the content of an input XML-document will be used to realize its encoding. If all failed then UTF-8 will be used"
                   &= typ  "ENC",
                 spaces =
                   def
@@ -573,7 +573,7 @@ main = do
   
   opts <- cmdArgs =<< opts'
   let inFileSources = if stdin_isatty && null (inFileNames opts)
-                      then error "No input data"
+                      then error "No input data.\nUse '--help' command line flag to see the usage case."
                       else if null (inFileNames opts)
                            then ["-"]
                            else inFileNames opts
