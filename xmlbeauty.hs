@@ -19,6 +19,7 @@ import Text.XML.HaXml.Types
 --import Control.Monad.Trans
 --import Control.Monad
 import Control.Monad.State
+import Control.Monad.Reader
 
 import Data.Char
 import Data.Maybe
@@ -216,6 +217,20 @@ getEncodingName4XmlHeader en =
     where normalized = filter (\x -> not $ elem x "_- ") (map toUpper en)  
 
 
+type Parsing a = ReaderT ParseConfig (StateT ParseState IO) a
+
+data LastElem = LastElemNothing | LastElemXmlProcessingInstruction | LastElemOpenTag | LastElemCloseTag | LastElemChars | LastElemComment
+
+data ParseConfig = ParseConfig { saveFunc :: String -> IO (),
+                                 outputEncoding :: String,
+                                 identString :: String
+                               }
+
+data ParseState = ParseState { identLevel :: Int,
+                               elems :: [SaxElement],
+                               lastElem :: LastElem
+                             }
+
 parseDoc :: Handle -> FilePath -> Handle ->Maybe EncodingName -> EncodingName -> String -> IO ()
 parseDoc inH inFileName outH inputEncoding outputEncoding identString = do
   
@@ -275,7 +290,10 @@ parseDoc inH inFileName outH inputEncoding outputEncoding identString = do
   
   hSetEncoding tmpH =<< mkTextEncoding' outputEncoding
 
-  runStateT printTree SaxState {identLevel=0, elems=elms, lastElem = LastElemNothing, saveFunc = hPutStr tmpH, outputEncoding = getEncodingName4XmlHeader outputEncoding, identString = identString}
+  flip runStateT ParseState {identLevel=0, elems=elms, lastElem = LastElemNothing} $
+    flip runReaderT ParseConfig {saveFunc = hPutStr tmpH, outputEncoding = getEncodingName4XmlHeader outputEncoding, identString = identString}
+      printTree
+    
   hSeek tmpH AbsoluteSeek 0
   hSetBinaryMode tmpH True
 
@@ -331,50 +349,42 @@ showAttributes attrs =
                 RefEntity name -> "&" ++ name ++ ";"
                 RefChar   c    -> "&#" ++ show c ++ ";"
               ++ showAttrValues vs
-  
 
-data LastElem = LastElemNothing | LastElemXmlProcessingInstruction | LastElemOpenTag | LastElemCloseTag | LastElemChars | LastElemComment
-data SaxState = SaxState { identLevel :: Int,
-                           elems :: [SaxElement],
-                           lastElem :: LastElem,
-                           saveFunc :: String -> IO (),
-                           outputEncoding :: String,
-                           identString :: String
-                         }
 
-setIdent :: Int -> StateT SaxState IO ()
+setIdent :: Int -> Parsing ()
 setIdent x = do
   z <- get
   put $ z { identLevel = x }
 
-getIdent :: StateT SaxState IO Int
+getIdent :: Parsing Int
 getIdent = do
   x <- get
   return $ identLevel x
   
-identMore :: StateT SaxState IO ()
+identMore :: Parsing ()
 identMore = do
   x <- get
   put $ x { identLevel = identLevel x +1 }
 
-identLess :: StateT SaxState IO ()
+identLess :: Parsing ()
 identLess = do
   x <- get
   put $ x { identLevel = identLevel x -1 }
   
-justIO :: IO () -> StateT SaxState IO ()
+justIO :: IO () -> Parsing ()
 justIO = liftIO
 
-print' :: String -> StateT SaxState IO ()
-print' s = do st <- get
-              justIO $ saveFunc st s
+print' :: String -> Parsing ()
+print' s = do cfg <- ask
+              justIO $ saveFunc cfg s
 
-printIdent :: String -> StateT SaxState IO ()
-printIdent s = do x <- get
+printIdent :: String -> Parsing ()
+printIdent s = do cfg <- ask
+                  st <- get
                   --print' $ replicate (identLevel x) '\t' ++ s
-                  print' $ concat (take (identLevel x) (repeat (identString x))) ++ s
+                  print' $ concat (take (identLevel st) (repeat (identString cfg))) ++ s
 
-popElem :: StateT SaxState IO (Maybe SaxElement)
+popElem :: Parsing (Maybe SaxElement)
 popElem = do
   x <- get
   case elems x of
@@ -382,20 +392,20 @@ popElem = do
     (h:hs) -> do put x { elems = hs }
                  return $ Just h
                  
-setLastElem :: LastElem -> StateT SaxState IO ()
+setLastElem :: LastElem -> Parsing ()
 setLastElem le = do
   st <- get
   put $ st {lastElem = le}
   
-getOutputEncoding :: StateT SaxState IO String
+getOutputEncoding :: Parsing String
 getOutputEncoding = do
-  st <- get
-  return $ outputEncoding st
+  cfg <- ask
+  return $ outputEncoding cfg
 
 xmlEscape' :: String -> String
 xmlEscape' s = s
 
-printElem :: SaxElement -> StateT SaxState IO ()
+printElem :: SaxElement -> Parsing ()
 printElem e = do
   st <- get
   case e of
@@ -446,7 +456,7 @@ printElem e = do
     
 
 
-printTree  :: StateT SaxState IO ()
+printTree  :: Parsing ()
 printTree  = do
   x <- popElem
   case x of
