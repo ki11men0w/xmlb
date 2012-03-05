@@ -20,6 +20,7 @@ import Text.XML.HaXml.Types
 --import Control.Monad
 import Control.Monad.State
 import Control.Monad.Reader
+import Control.Monad.Writer
 
 import Data.Char
 import Data.Maybe
@@ -217,18 +218,18 @@ getEncodingName4XmlHeader en =
     where normalized = filter (\x -> not $ elem x "_- ") (map toUpper en)  
 
 
-type Parsing a = ReaderT ParseConfig (StateT ParseState IO) a
+type Parsing a = ReaderT ParseConfig (StateT ParseState (WriterT String IO)) a
 
 data LastElem = LastElemNothing | LastElemXmlProcessingInstruction | LastElemOpenTag | LastElemCloseTag | LastElemChars | LastElemComment
 
-data ParseConfig = ParseConfig { saveFunc :: String -> IO (),
-                                 outputEncoding :: String,
-                                 identString :: String
+data ParseConfig = ParseConfig { 
+                                 outputEncoding :: !String,
+                                 identString :: !String
                                }
 
-data ParseState = ParseState { identLevel :: Int,
+data ParseState = ParseState { identLevel :: !Int,
                                elems :: [SaxElement],
-                               lastElem :: LastElem
+                               lastElem :: !LastElem
                              }
 
 parseDoc :: Handle -> FilePath -> Handle ->Maybe EncodingName -> EncodingName -> String -> IO ()
@@ -284,19 +285,19 @@ parseDoc inH inFileName outH inputEncoding outputEncoding identString = do
   
   let (elms, xxx) = saxParse inFileName (inpt)
   
+  r <- execWriterT $ 
+       flip runStateT ParseState {identLevel=0, elems=elms, lastElem = LastElemNothing} $
+         flip runReaderT ParseConfig {outputEncoding = getEncodingName4XmlHeader outputEncoding, identString = identString} $
+              printTree
+    
   (tmpName, tmpH) <- do
     tmpDir <- catch getTemporaryDirectory (\_ -> return ".")
     openTempFile tmpDir "xmlbeauty.xml" 
   
   hSetEncoding tmpH =<< mkTextEncoding' outputEncoding
-
-  flip runStateT ParseState {identLevel=0, elems=elms, lastElem = LastElemNothing} $
-    flip runReaderT ParseConfig {saveFunc = hPutStr tmpH, outputEncoding = getEncodingName4XmlHeader outputEncoding, identString = identString}
-      printTree
-    
+  hPutStr tmpH r
   hSeek tmpH AbsoluteSeek 0
   hSetBinaryMode tmpH True
-
   y <- hGetContents tmpH
   hPutStr outH y
   hClose tmpH
@@ -375,8 +376,7 @@ justIO :: IO () -> Parsing ()
 justIO = liftIO
 
 print' :: String -> Parsing ()
-print' s = do cfg <- ask
-              justIO $ saveFunc cfg s
+print' s = tell s
 
 printIdent :: String -> Parsing ()
 printIdent s = do cfg <- ask
