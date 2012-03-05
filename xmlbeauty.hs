@@ -83,8 +83,8 @@ type EncodingName = String
 data BomTestResult = FullyMatch EncodingName | SemiMatch EncodingName | NotMatch
                    deriving (Show)
 
-getXmlEncoding' :: Handle -> IO (Maybe EncodingName, BS.ByteString)
-getXmlEncoding' inH = do
+getXmlEncoding :: Handle -> IO (Maybe EncodingName, BS.ByteString)
+getXmlEncoding inH = do
   t <- bomTest'
   case t of
     (Just e, s)  -> return (Just e, s)
@@ -185,70 +185,6 @@ getXmlEncoding' inH = do
                                    where min_length = length "<?xml encoding=\".\"?>"
                                          already_read_str_length = BS.length already_read_str
                                         
-              
-
-getXmlEncoding :: String -> EncodingName
-getXmlEncoding xml =
-  case bomTest of
-    Just s -> s
-    _      -> case xmlDeclTest of
-                Just s -> s
-                _      -> defaultInputEncoding
-                
-    where bomTest :: Maybe String
-          bomTest =
-            let utf8'BOM       = map chr [0xef, 0xbb, 0xbf]
-                utf16be'BOM    = map chr [0xFE, 0xFF]
-                utf16le'BOM    = map chr [0xFF, 0xFE]
-                utf32be'BOM    = map chr [0x00, 0x00, 0xFE, 0xFF]
-                utf32le'BOM    = map chr [0xFF, 0xFE, 0x00, 0x00]
-                utf7'BOMstart  = map chr [0x2B, 0x2F, 0x76]
-                utf1'BOM       = map chr [0xF7, 0x64, 0x4C]
-                utfEBCDIC'BOM  = map chr [0xDD, 0x73, 0x66, 0x73]
-                scsu'BOM       = map chr [0x0E, 0xFE, 0xFF]
-                bocu1'BOM      = map chr [0xFB, 0xEE, 0x28]
-                gb18030'BOM    = map chr [0x84, 0x31, 0x95, 0x33]
-                
-            in case 1 of
-              _ 
-                | checkBOM utf8'BOM      -> Just "UTF-8"
-                | checkBOM utf16be'BOM   -> Just "UTF-16BE"
-                | checkBOM utf16le'BOM   -> Just "UTF-16LE"
-                | checkBOM utf32be'BOM   -> Just "UTF-32BE"
-                | checkBOM utf32le'BOM   -> Just "UTF-32LE"
-                | checkBOM utf7'BOMstart ->
-                        -- Для UTF-7 последний символ BOM может содержать 
-                        -- любой из четырех символов.
-                        let xml' = drop (length utf7'BOMstart) xml
-                        in case 1 of
-                          _
-                            -- Проверим что что строка не кончилась на первой части BOM
-                            | null xml'  -> Nothing
-                            -- Проверим входит ли наш символ в группу допустимых концов BOM
-                            | head xml' `elem` map chr [0x38, 0x39, 0x2B, 0x2F]    -> Just "UTF-7"
-                            | otherwise                                    -> Nothing
-                
-                | checkBOM utf1'BOM      -> Just "UTF-1"
-                | checkBOM utfEBCDIC'BOM -> Just "UTF-EBCDIC"
-                | checkBOM scsu'BOM      -> Just "SCSU"
-                | checkBOM bocu1'BOM     -> Just "BOCU-1"
-                | checkBOM gb18030'BOM   -> Just "GB18030"
-
-                | otherwise -> Nothing
-              
-              where checkBOM bom = bom `isPrefixOf` xml
-                  
-          
-          xmlDeclTest :: Maybe String
-          xmlDeclTest =
-            -- Считаем что по крайней мере до конца xml-заголовока идут только однобайтовые символы
-            let xml'' = dropWhile isSpace $ take 1000 xml
-                (_, _, _, enc) = xml'' =~ "<\\?xml .*encoding=\"(.+)\".*\\?>" :: (String, String, String, [String])
-            in
-             case enc of
-               e:es      -> Just e
-               otherwise -> Nothing
-               
 
 
 mkTextEncoding' :: EncodingName -> IO TextEncoding       
@@ -288,7 +224,7 @@ parseDoc inH inFileName outH inputEncoding outputEncoding identString = do
   let getInputEncoding :: IO (Maybe EncodingName, BS.ByteString)
       getInputEncoding = case inputEncoding of
         Just e -> return (Just e, BS.empty)
-        Nothing -> getXmlEncoding' inH
+        Nothing -> getXmlEncoding inH
           
   (inputEncodingName', inpt') <- getInputEncoding
   inpt <- case inputEncodingName' of
