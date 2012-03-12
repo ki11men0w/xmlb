@@ -217,18 +217,19 @@ getEncodingName4XmlHeader en =
     where normalized = filter (\x -> not $ elem x "_- ") (map toUpper en)  
 
 
-type Parsing a = ReaderT ParseConfig (StateT ParseState IO) a
+type Parsing a = ReaderT ParseConfig (State ParseState) a
 
 data LastElem = LastElemNothing | LastElemXmlProcessingInstruction | LastElemOpenTag | LastElemCloseTag | LastElemChars | LastElemComment
 
-data ParseConfig = ParseConfig { saveFunc :: String -> IO (),
+data ParseConfig = ParseConfig { 
                                  outputEncoding :: String,
                                  identString :: String
                                }
 
 data ParseState = ParseState { identLevel :: Int,
                                elems :: [SaxElement],
-                               lastElem :: LastElem
+                               lastElem :: LastElem,
+                               result :: String
                              }
 
 parseDoc :: Handle -> FilePath -> Handle ->Maybe EncodingName -> EncodingName -> String -> IO ()
@@ -290,10 +291,12 @@ parseDoc inH inFileName outH inputEncoding outputEncoding identString = do
   
   hSetEncoding tmpH =<< mkTextEncoding' outputEncoding
 
-  flip runStateT ParseState {identLevel=0, elems=elms, lastElem = LastElemNothing} $
-    flip runReaderT ParseConfig {saveFunc = hPutStr tmpH, outputEncoding = getEncodingName4XmlHeader outputEncoding, identString = identString}
-      printTree
+  let c = ParseConfig {outputEncoding = getEncodingName4XmlHeader outputEncoding, identString = identString}
+      s = ParseState {identLevel=0, elems=elms, lastElem = LastElemNothing, result = ""}
+      !x = printTree c s
     
+  hPutStr tmpH x
+  
   case err of
     Just s -> do hClose tmpH
                  removeFile tmpName
@@ -374,12 +377,13 @@ identLess = do
   x <- get
   put $ x { identLevel = identLevel x -1 }
   
-justIO :: IO () -> Parsing ()
-justIO = liftIO
+--justIO :: IO () -> Parsing ()
+--justIO = liftIO
 
 print' :: String -> Parsing ()
-print' s = do cfg <- ask
-              justIO $ saveFunc cfg s
+print' s = do
+  st <- get
+  put $ st { result = (result st) ++ s }
 
 printIdent :: String -> Parsing ()
 printIdent s = do cfg <- ask
@@ -459,19 +463,19 @@ printElem e = do
     
 
 
-printTree  :: Parsing ()
-printTree  = do
-  x <- popElem
-  case x of
-    Nothing -> do st <- get
-                  case lastElem st of
-                    LastElemCloseTag -> lastNewLine
-                    LastElemComment  -> lastNewLine
-                    _                -> return ()
-                    where lastNewLine = print' "\n"
-                  
-    Just e  -> do printElem e
-                  printTree
+printTree  :: ParseConfig -> ParseState -> String
+printTree cfg st =
+  case elems st of
+    [] -> case lastElem st of
+                 LastElemCloseTag -> lastNewLine
+                 LastElemComment  -> lastNewLine
+                 _                -> ""
+                 where lastNewLine = "\n"
+    e:ex -> let st' = flip execState st{elems=ex, result = ""} $
+                      flip runReaderT cfg $
+                      printElem e
+            in result st' ++ printTree cfg st'
+    
       
 
 processOneSource :: Flags -> FilePath -> IO ()
