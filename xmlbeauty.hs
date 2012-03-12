@@ -218,7 +218,7 @@ getEncodingName4XmlHeader en =
     where normalized = filter (\x -> not $ elem x "_- ") (map toUpper en)  
 
 
-type Parsing a = ReaderT ParseConfig (StateT ParseState (WriterT String IO)) a
+type Parsing a = WriterT String (StateT ParseState (Reader ParseConfig)) a
 
 data LastElem = LastElemNothing | LastElemXmlProcessingInstruction | LastElemOpenTag | LastElemCloseTag | LastElemChars | LastElemComment
 
@@ -283,19 +283,25 @@ parseDoc inH inFileName outH inputEncoding outputEncoding identString = do
           inpt'' <- BS.hGetContents inH
           return $ TXT.unpack $ decodeUtf8 $ BS.append inpt' inpt''
   
-  let (elms, xxx) = saxParse inFileName (inpt)
-  
-  r <- execWriterT $ 
-       flip runStateT ParseState {identLevel=0, elems=elms, lastElem = LastElemNothing} $
-         flip runReaderT ParseConfig {outputEncoding = getEncodingName4XmlHeader outputEncoding, identString = identString} $
-              printTree
-    
   (tmpName, tmpH) <- do
     tmpDir <- catch getTemporaryDirectory (\_ -> return ".")
     openTempFile tmpDir "xmlbeauty.xml" 
   
+  let (elms, err) = saxParse inFileName (inpt)
+  
+  let !r = flip runReader ParseConfig {outputEncoding = getEncodingName4XmlHeader outputEncoding, identString = identString} $
+           flip evalStateT ParseState {identLevel=0, elems=elms, lastElem = LastElemNothing} $
+           execWriterT printTree
+    
   hSetEncoding tmpH =<< mkTextEncoding' outputEncoding
   hPutStr tmpH r
+  
+  case err of
+    Just s  -> do hClose tmpH
+                  removeFile tmpName
+                  error s
+    Nothing -> return ()
+    
   hSeek tmpH AbsoluteSeek 0
   hSetBinaryMode tmpH True
   y <- hGetContents tmpH
@@ -303,10 +309,6 @@ parseDoc inH inFileName outH inputEncoding outputEncoding identString = do
   hClose tmpH
   removeFile tmpName
     
-  case xxx of
-    Just s -> error s
-    _      -> return ()
-       
 
 showElement :: SaxElement -> String
 showElement (SaxProcessingInstruction (target, value)) =  "<?" ++ target ++ " " ++ value ++ "?>"
@@ -372,8 +374,8 @@ identLess = do
   x <- get
   put $ x { identLevel = identLevel x -1 }
   
-justIO :: IO () -> Parsing ()
-justIO = liftIO
+--justIO :: IO () -> Parsing ()
+--justIO = liftIO
 
 print' :: String -> Parsing ()
 print' s = tell s
