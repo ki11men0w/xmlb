@@ -282,7 +282,7 @@ parseDoc inH inFileName outH inputEncoding outputEncoding identString = do
           inpt'' <- BS.hGetContents inH
           return $ TXT.unpack $ decodeUtf8 $ BS.append inpt' inpt''
   
-  let (elms, xxx) = saxParse inFileName (inpt)
+  let (elms, err) = saxParse inFileName (inpt)
   
   (tmpName, tmpH) <- do
     tmpDir <- catch getTemporaryDirectory (\_ -> return ".")
@@ -294,6 +294,12 @@ parseDoc inH inFileName outH inputEncoding outputEncoding identString = do
     flip runReaderT ParseConfig {saveFunc = hPutStr tmpH, outputEncoding = getEncodingName4XmlHeader outputEncoding, identString = identString}
       printTree
     
+  case err of
+    Just s -> do hClose tmpH
+                 removeFile tmpName
+                 error s
+    _      -> return ()
+    
   hSeek tmpH AbsoluteSeek 0
   hSetBinaryMode tmpH True
 
@@ -302,9 +308,6 @@ parseDoc inH inFileName outH inputEncoding outputEncoding identString = do
   hClose tmpH
   removeFile tmpName
     
-  case xxx of
-    Just s -> error s
-    _      -> return ()
        
 
 showElement :: SaxElement -> String
