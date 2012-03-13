@@ -7,6 +7,7 @@ import System.Console.CmdArgs
 --import System.Exit
 --import Data.Maybe ( fromMaybe )
 import System.IO
+import System.IO.Temp
 import System.Directory
 import System.FilePath
 --import System.IO.Error
@@ -250,26 +251,19 @@ parseDoc inH inFileName outH inputEncoding outputEncoding identString = do
     
           inputEncoding <- mkTextEncoding' inputEncodingName
       
-          (tmpName', tmpH') <- do
-            tmpDir <- catch getTemporaryDirectory (\_ -> return ".")
-            openTempFile tmpDir "xmlbeauty.header" 
-          
-          !inpt' <-
-            if BS.null inpt' then
-              do hClose tmpH'
-                 return ""
-            else
-              do hSetBinaryMode tmpH' True
-                 BS.hPutStr tmpH' inpt'
-                 hSeek tmpH' AbsoluteSeek 0
-                 hSetEncoding tmpH' inputEncoding
-                 -- Все эти strict* для того что-бы можно было закрыть файл
-                 -- tmpName' сразуже
-                 (withStrategy rdeepseq) `liftM` hGetContents tmpH'
-                     
-          hClose tmpH'
-          removeFile tmpName'
-        
+          inpt' <- withSystemTempFile "xmlbeauty.header" $ \_ -> \tmpH ->
+                    if BS.null inpt' then
+                      return ""
+                    else
+                      do hSetBinaryMode tmpH True
+                         BS.hPutStr tmpH inpt'
+                         hSeek tmpH AbsoluteSeek 0
+                         hSetEncoding tmpH inputEncoding
+                         -- Все эти strict* для того что-бы можно было закрыть
+                         -- временный файл сразуже
+                         !x <- (withStrategy rdeepseq) `liftM` hGetContents tmpH
+                         return x
+                    
           hSetEncoding inH inputEncoding
           inpt'' <- hGetContents inH
           return $ inpt' ++ inpt''
@@ -288,26 +282,20 @@ parseDoc inH inFileName outH inputEncoding outputEncoding identString = do
   let (elms', err') = saxParse inFileName (inpt)
       elms = (map SaxElement' elms') ++ [SaxError' err']
   
-  (tmpName, tmpH) <- do
-    tmpDir <- catch getTemporaryDirectory (\_ -> return ".")
-    openTempFile tmpDir "xmlbeauty.xml" 
-  
-  hSetEncoding tmpH =<< mkTextEncoding' outputEncoding
-
-  let c = ParseConfig {outputEncoding = getEncodingName4XmlHeader outputEncoding, identString = identString}
-      s = ParseState {identLevel=0, elems=elms, lastElem = LastElemNothing, result = ""}
-      !x = printTree c s
-    
-  hPutStr tmpH x
-  
-  hSeek tmpH AbsoluteSeek 0
-  hSetBinaryMode tmpH True
-
-  y <- hGetContents tmpH
-  hPutStr outH y
-  hClose tmpH
-  removeFile tmpName
-    
+  withSystemTempFile "xmlbeauty.xml" $ \_ -> \tmpH ->
+    do hSetEncoding tmpH =<< mkTextEncoding' outputEncoding
+   
+       let c = ParseConfig {outputEncoding = getEncodingName4XmlHeader outputEncoding, identString = identString}
+           s = ParseState {identLevel=0, elems=elms, lastElem = LastElemNothing, result = ""}
+           !x = printTree c s
+         
+       hPutStr tmpH x
+       
+       hSeek tmpH AbsoluteSeek 0
+       hSetBinaryMode tmpH True
+       
+       y <- hGetContents tmpH
+       hPutStr outH y
        
 
 showElement :: SaxElement -> String
