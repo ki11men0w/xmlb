@@ -227,10 +227,12 @@ data ParseConfig = ParseConfig {
                                }
 
 data ParseState = ParseState { identLevel :: Int,
-                               elems :: [SaxElement],
+                               elems :: [SaxElementWrapper],
                                lastElem :: LastElem,
                                result :: String
                              }
+
+data SaxElementWrapper = SaxElement' SaxElement | SaxError' (Maybe String)
 
 parseDoc :: Handle -> FilePath -> Handle ->Maybe EncodingName -> EncodingName -> String -> IO ()
 parseDoc inH inFileName outH inputEncoding outputEncoding identString = do
@@ -283,7 +285,8 @@ parseDoc inH inFileName outH inputEncoding outputEncoding identString = do
           inpt'' <- BS.hGetContents inH
           return $ TXT.unpack $ decodeUtf8 $ BS.append inpt' inpt''
   
-  let (elms, err) = saxParse inFileName (inpt)
+  let (elms', err') = saxParse inFileName (inpt)
+      elms = (map SaxElement' elms') ++ [SaxError' err']
   
   (tmpName, tmpH) <- do
     tmpDir <- catch getTemporaryDirectory (\_ -> return ".")
@@ -297,12 +300,6 @@ parseDoc inH inFileName outH inputEncoding outputEncoding identString = do
     
   hPutStr tmpH x
   
-  case err of
-    Just s -> do hClose tmpH
-                 removeFile tmpName
-                 error s
-    _      -> return ()
-    
   hSeek tmpH AbsoluteSeek 0
   hSetBinaryMode tmpH True
 
@@ -391,13 +388,20 @@ printIdent s = do cfg <- ask
                   --print' $ replicate (identLevel x) '\t' ++ s
                   print' $ concat (take (identLevel st) (repeat (identString cfg))) ++ s
 
+unwrapSaxElem :: SaxElementWrapper -> Maybe SaxElement
+unwrapSaxElem we = 
+  case we of
+    SaxElement' e -> Just e
+    SaxError' Nothing -> Nothing
+    SaxError' (Just s) -> error s
+    
 popElem :: Parsing (Maybe SaxElement)
 popElem = do
   x <- get
   case elems x of
     []     -> return Nothing
     (h:hs) -> do put x { elems = hs }
-                 return $ Just h
+                 return $ unwrapSaxElem h
                  
 setLastElem :: LastElem -> Parsing ()
 setLastElem le = do
@@ -471,10 +475,12 @@ printTree cfg st =
                  LastElemComment  -> lastNewLine
                  _                -> ""
                  where lastNewLine = "\n"
-    e:ex -> let st' = flip execState st{elems=ex, result = ""} $
-                      flip runReaderT cfg $
-                      printElem e
-            in result st' ++ printTree cfg st'
+    e:ex -> case unwrapSaxElem e of
+      Just e -> let st' = flip execState st{elems=ex, result = ""} $
+                          flip runReaderT cfg $
+                          printElem e
+                in result st' ++ printTree cfg st'
+      _ -> printTree cfg st{elems=ex}
     
       
 
