@@ -201,6 +201,8 @@ mkTextEncoding' en =
     "UTF16BE"  -> return utf16be
     "UTF32LE"  -> return utf32le
     "UTF32BE"  -> return utf32be
+    "WINDOWS1251" -> mkTextEncoding ("CP1251")
+    "WINDOWS866"  -> mkTextEncoding ("CP866")
     _          -> mkTextEncoding (map toUpper en)
     
     where normalized = filter (\x -> not $ elem x "_- ") (map toUpper en)  
@@ -213,6 +215,8 @@ getEncodingName4XmlHeader en =
     "UTF16BE" -> "UTF-16"
     "UTF32LE" -> "UTF-32"
     "UTF32BE" -> "UTF-32"
+    "CP1251"  -> "WINDOWS-1251"
+    "CP866"   -> "WINDOWS-866"
     _         -> en
     
     where normalized = filter (\x -> not $ elem x "_- ") (map toUpper en)  
