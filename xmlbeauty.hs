@@ -387,14 +387,6 @@ unwrapSaxElem we =
     SaxError' Nothing -> Nothing
     SaxError' (Just s) -> error s
     
-popElem :: Parsing (Maybe SaxElement)
-popElem = do
-  x <- get
-  case elems x of
-    []     -> return Nothing
-    (h:hs) -> do put x { elems = hs }
-                 return $ unwrapSaxElem h
-                 
 setLastElem :: LastElem -> Parsing ()
 setLastElem le = do
   st <- get
