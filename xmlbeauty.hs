@@ -51,6 +51,8 @@ data Flags = Flags
                output_encoding :: Maybe String,
                input_encoding :: Maybe String,
                spaces :: Maybe Int,
+               normalize_space :: Bool,
+               preserve_all_space :: Bool,
                inFileNames :: [String]
              } deriving (Show, Data, Typeable)
                                 
@@ -71,6 +73,14 @@ opts' = getProgName >>= \programName -> return $
                   def
                   &= help ("Use this number of spaces instead of tabs for identation (default is " ++ show defaultSpaceIdent ++ ")")
                   &= opt (show defaultSpaceIdent),
+                normalize_space =
+                  def
+                  &= help "Trim leading and trailing spaces of text fields"
+                  &= name normalize_space_oname,
+                preserve_all_space =
+                  def
+                  &= help "Preserve all spaces in text fields even if text consists only of spaces"
+                  &= name preserve_all_space_oname,
                 
                 inFileNames =
                   def &= args &= typ "XMLFILE1 [XMLFILE2 ...]"
@@ -81,6 +91,15 @@ opts' = getProgName >>= \programName -> return $
                     "usage: " ++ programName ++ " OPTIONS XMLFILE1 [XMLFILE2 ...]",
                     "       " ++ programName ++ " OPTIONS < somefile.xml > somefile.xml"]
 
+
+normalize_space_oname = "normalize-space"
+preserve_all_space_oname = "preserve-all-space"
+  
+showOption :: String -> String
+showOption s =
+  case s of
+    x:[] -> "-" ++ [x]
+    x    -> "--" ++ x
 
 type EncodingName = String
 
@@ -226,25 +245,32 @@ getEncodingName4XmlHeader en =
     where normalized = filter (\x -> not $ elem x "_- ") (map toUpper en)  
 
 
-type Parsing a = ReaderT ParseConfig (State ParseState) a
+--type Parsing a = ReaderT ParseConfig (State ParseState) a
+type Parsing a = StateT ParseState (Reader ParseConfig) a
 
 data LastElem = LastElemNothing | LastElemXmlHeader | LastElemProcessingInstruction | LastElemOpenTag | LastElemCloseTag | LastElemChars | LastElemComment
+              deriving (Eq)
 
 data ParseConfig = ParseConfig { 
                                  outputEncoding :: String,
-                                 identString :: String
+                                 identString :: String,
+                                 normalizeSpace :: Bool,
+                                 preserveAllSpaces :: Bool
                                }
 
 data ParseState = ParseState { identLevel :: Int,
                                elems :: [SaxElementWrapper],
                                lastElem :: LastElem,
+                               postponedElems :: [SaxElement],
                                result :: String
                              }
 
+data WaitingFor = Wait4CloseTagOrNotSpaceText
+
 data SaxElementWrapper = SaxElement' SaxElement | SaxError' (Maybe String)
 
-parseDoc :: Handle -> FilePath -> Handle ->Maybe EncodingName -> Maybe EncodingName -> String -> IO ()
-parseDoc inH inFileName outH inputEncoding outputEncoding identString = do
+parseDoc :: Handle -> FilePath -> Handle ->Maybe EncodingName -> Maybe EncodingName -> String -> Bool -> Bool -> IO ()
+parseDoc inH inFileName outH inputEncoding outputEncoding identString normalizeSpace preserveAllSpaces = do
   
   hSetBinaryMode inH True
   
@@ -296,8 +322,11 @@ parseDoc inH inFileName outH inputEncoding outputEncoding identString = do
        -- совпадать с входной.
        hSetEncoding tmpH =<< mkTextEncoding' (fromMaybe inputEncodingName outputEncoding)
    
-       let c = ParseConfig {outputEncoding = getEncodingName4XmlHeader outputEncodingName, identString = identString}
-           s = ParseState {identLevel=0, elems=elms, lastElem = LastElemNothing, result = ""}
+       let c = ParseConfig {outputEncoding = getEncodingName4XmlHeader outputEncodingName,
+                            identString = identString,
+                            normalizeSpace = normalizeSpace,
+                            preserveAllSpaces = preserveAllSpaces}
+           s = ParseState {identLevel=0, elems=elms, lastElem = LastElemNothing, postponedElems = [], result = ""}
            !x = printTree c s
          
        hPutStr tmpH x
@@ -399,6 +428,17 @@ setLastElem le = do
   st <- get
   put $ st {lastElem = le}
   
+putPostponedElem :: SaxElement -> WaitingFor -> Parsing ()
+putPostponedElem e whatingFor = do
+  st <- get
+  put $ st {postponedElems = postponedElems st ++ [e]}
+
+clearPostponedElems :: Parsing ()
+clearPostponedElems = do
+  st <- get
+  put $ st {postponedElems = []}
+  
+
 getOutputEncoding :: Parsing String
 getOutputEncoding = do
   cfg <- ask
@@ -410,6 +450,10 @@ xmlEscape' s = s
 printElem :: SaxElement -> Parsing ()
 printElem e = do
   st <- get
+  cfg <- ask
+  let normalizeSpace' = normalizeSpace cfg
+      preserveAllSpaces' = preserveAllSpaces cfg
+      postponedElems' = postponedElems st
   case e of
     x@(SaxProcessingInstruction ("xml", _)) -> do case lastElem st of
                                                     LastElemNothing  -> return ()
@@ -436,14 +480,27 @@ printElem e = do
                                                           printIdent ""
                                   print' $ showElement x
                                   setLastElem LastElemCloseTag
+                                  clearPostponedElems
     
-    x@(SaxCharData s)       -> unless (all isSpace s && lastElemIsNotChar) $
-                                 do print' $ xmlEscape' s
-                                    setLastElem LastElemChars
-                                 where 
-                                   lastElemIsNotChar = case lastElem st of
-                                                         LastElemChars -> False
-                                                         _             -> True
+    x@(SaxCharData s)       -> case 1 of
+                                 _
+                                   | preserveAllSpaces' -> 
+                                     do print' $ xmlEscape' s
+                                        setLastElem LastElemChars
+                                   | (all isSpace s) && lastElem st == LastElemOpenTag && normalizeSpace' -> return ()
+                                   | (all isSpace s) && lastElem st == LastElemChars && normalizeSpace' -> putPostponedElem x Wait4CloseTagOrNotSpaceText
+                                   | otherwise -> do clearPostponedElems
+                                                     local (\cfg -> cfg {preserveAllSpaces = True}) $ mapM_ printElem postponedElems'
+                                                     print' $ xmlEscape' s
+                                                     setLastElem LastElemChars
+                                                     clearPostponedElems
+                               -- unless (all isSpace s && lastElemIsNotChar) $
+                               --   do print' $ xmlEscape' s
+                               --      setLastElem LastElemChars
+                               --   where 
+                               --     lastElemIsNotChar = case lastElem st of
+                               --                           LastElemChars -> False
+                               --                           _             -> True
                                             
     x@(SaxElementTag _ _)   -> do print' "\n"
                                   printIdent (showElement x) 
@@ -472,8 +529,8 @@ printTree cfg st =
                  _                -> ""
                  where lastNewLine = "\n"
     e:ex -> case unwrapSaxElem e of
-      Just e -> let st' = flip execState st{elems=ex, result = ""} $
-                          flip runReaderT cfg $
+      Just e -> let st' = flip runReader cfg $
+                          flip execStateT st{elems=ex, result = ""} $
                           printElem e
                 in result st' ++ printTree cfg st'
       _ -> printTree cfg st{elems=ex}
@@ -500,7 +557,7 @@ processOneSource opts inFileName = do
   hSetBinaryMode inFileH True
   hSetBinaryMode outFileH True
   
-  parseDoc inFileH inFileDecoratedName outFileH inputEncoding outputEncoding identString
+  parseDoc inFileH inFileDecoratedName outFileH inputEncoding outputEncoding identString (normalize_space opts) (preserve_all_space opts)
   
   when inPlace $
     do hClose inFileH
@@ -520,6 +577,11 @@ processOneSource opts inFileName = do
         Just i -> replicate i ' '
         _               -> "\t"
 
+checkOptions opts = do
+  when (normalize_space opts && preserve_all_space opts) $
+    error $ "Options " ++ showOption normalize_space_oname ++ " and " ++ showOption preserve_all_space_oname ++ " are mutually exclusive"
+  
+
 main :: IO ()
 main = do
   stdin_isatty  <- hIsTerminalDevice stdin
@@ -527,6 +589,7 @@ main = do
   let inPlace = stdin_isatty && stdout_isatty
   
   opts <- cmdArgs =<< opts'
+  checkOptions opts
   let inFileSources = if stdin_isatty && null (inFileNames opts)
                       then error "No input data.\nUse '--help' command line flag to see the usage case."
                       else if null (inFileNames opts)
