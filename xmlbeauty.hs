@@ -224,7 +224,7 @@ getEncodingName4XmlHeader en =
 
 type Parsing a = ReaderT ParseConfig (State ParseState) a
 
-data LastElem = LastElemNothing | LastElemXmlProcessingInstruction | LastElemOpenTag | LastElemCloseTag | LastElemChars | LastElemComment
+data LastElem = LastElemNothing | LastElemXmlHeader | LastElemProcessingInstruction | LastElemOpenTag | LastElemCloseTag | LastElemChars | LastElemComment
 
 data ParseConfig = ParseConfig { 
                                  outputEncoding :: String,
@@ -413,7 +413,11 @@ printElem e = do
                                                   
                                                   enc <- getOutputEncoding
                                                   printIdent $ showSaxProcessingInstruction x enc
-                                                  setLastElem LastElemXmlProcessingInstruction
+                                                  setLastElem LastElemXmlHeader
+      
+    x@(SaxProcessingInstruction _) -> do print' "\n"
+                                         printIdent (showElement x) 
+                                         setLastElem LastElemProcessingInstruction
       
     x@(SaxElementOpen _ _)  -> do print' "\n"
                                   printIdent (showElement x) 
@@ -442,7 +446,7 @@ printElem e = do
                                   setLastElem LastElemCloseTag
                                   
     x@(SaxComment s)        -> do case lastElem st of
-                                    LastElemXmlProcessingInstruction -> unless (isEmacsInstructions s) (print' "\n")
+                                    LastElemXmlHeader -> unless (isEmacsInstructions s) (print' "\n")
                                     _ -> print' "\n"
                                   printIdent (showElement x)
                                   setLastElem LastElemComment
@@ -460,6 +464,7 @@ printTree cfg st =
     [] -> case lastElem st of
                  LastElemCloseTag -> lastNewLine
                  LastElemComment  -> lastNewLine
+                 LastElemProcessingInstruction -> lastNewLine
                  _                -> ""
                  where lastNewLine = "\n"
     e:ex -> case unwrapSaxElem e of
