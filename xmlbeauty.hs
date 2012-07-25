@@ -39,7 +39,7 @@ import Control.Parallel.Strategies (rdeepseq, withStrategy)
 programVersion = "2.0.0.2 (haskell)"
 
 defaultInputEncoding  = "UTF-8"
-defaultOutputEncoding = "ISO-8859-1"
+defaultLegacyOutputEncoding = "ISO-8859-1"
 defaultSpaceIdent = 3
 
 
@@ -58,7 +58,7 @@ opts' = getProgName >>= \programName -> return $
                    &= help "Backup original files",
                 output_encoding =
                   def
-                  &= help ("Encoding for OUTPUT documents (default is " ++ defaultOutputEncoding ++ ")")
+                  &= help ("Encoding for OUTPUT documents (default is encoding of input document)")
                   &= explicit &= name "e" &= name "encoding" &= name "o"
                   &= typ  "ENC",
                 input_encoding =
@@ -239,7 +239,7 @@ data ParseState = ParseState { identLevel :: Int,
 
 data SaxElementWrapper = SaxElement' SaxElement | SaxError' (Maybe String)
 
-parseDoc :: Handle -> FilePath -> Handle ->Maybe EncodingName -> EncodingName -> String -> IO ()
+parseDoc :: Handle -> FilePath -> Handle ->Maybe EncodingName -> Maybe EncodingName -> String -> IO ()
 parseDoc inH inFileName outH inputEncoding outputEncoding identString = do
   
   hSetBinaryMode inH True
@@ -250,7 +250,7 @@ parseDoc inH inFileName outH inputEncoding outputEncoding identString = do
         Nothing -> getXmlEncoding inH
           
   (inputEncodingName', inpt') <- getInputEncoding
-  inpt <- case inputEncodingName' of
+  (inpt, inputEncodingName) <- case inputEncodingName' of
         Just inputEncodingName -> do
     
           inputEncoding <- mkTextEncoding' inputEncodingName
@@ -270,7 +270,7 @@ parseDoc inH inFileName outH inputEncoding outputEncoding identString = do
                     
           hSetEncoding inH inputEncoding
           inpt'' <- hGetContents inH
-          return $ inpt' ++ inpt''
+          return $ (inpt' ++ inpt'', inputEncodingName)
         
         Nothing -> do
           -- Если кодировку определить не смогли, то считаем, что
@@ -281,15 +281,18 @@ parseDoc inH inFileName outH inputEncoding outputEncoding identString = do
           -- hSetEncoding) не позволяет это сделать, то используем
           -- здесь функционал Data.Text.Encoding.
           inpt'' <- BS.hGetContents inH
-          return $ TXT.unpack $ decodeUtf8 $ BS.append inpt' inpt''
+          return $ (TXT.unpack $ decodeUtf8 $ BS.append inpt' inpt'', "UTF-8")
   
   let (elms', err') = saxParse inFileName (inpt)
       elms = (map SaxElement' elms') ++ [SaxError' err']
   
   withSystemTempFile "xmlbeauty.xml" $ \_ -> \tmpH ->
-    do hSetEncoding tmpH =<< mkTextEncoding' outputEncoding
+    do let outputEncodingName = fromMaybe inputEncodingName outputEncoding
+       -- Если выходная кодировка не указана явно, то подразумевается что выходная кодировка должна
+       -- совпадать с входной.
+       hSetEncoding tmpH =<< mkTextEncoding' (fromMaybe inputEncodingName outputEncoding)
    
-       let c = ParseConfig {outputEncoding = getEncodingName4XmlHeader outputEncoding, identString = identString}
+       let c = ParseConfig {outputEncoding = getEncodingName4XmlHeader outputEncodingName, identString = identString}
            s = ParseState {identLevel=0, elems=elms, lastElem = LastElemNothing, result = ""}
            !x = printTree c s
          
@@ -500,8 +503,8 @@ processOneSource opts inFileName = do
   
   
   where
-    outputEncoding = fromMaybe defaultOutputEncoding (output_encoding opts)
     inputEncoding = input_encoding opts
+    outputEncoding = output_encoding opts
                      
     identString =
       case spaces opts of
