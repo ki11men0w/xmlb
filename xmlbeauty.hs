@@ -1,5 +1,6 @@
 {-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE BangPatterns #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 module Main where
 
 import System.Environment
@@ -25,7 +26,8 @@ import Control.Monad.Reader
 import Data.Char
 import Data.Maybe
 --import System.IO.Error (catch)
---import Control.Exception (finally)
+import Control.Exception (SomeException, catch)
+import Prelude hiding (catch)
 import Text.Regex.Posix
 
 import qualified Data.ByteString as BS
@@ -478,7 +480,7 @@ printTree cfg st =
 
 processOneSource :: Flags -> FilePath -> IO ()
 processOneSource opts inFileName = do
-  tmpDir <- catch getTemporaryDirectory (\_ -> return ".")
+  tmpDir <- catch getTemporaryDirectory (\(e :: SomeException) -> return ".")
   let inFileP = inFileName
   
   stdout_isatty <- hIsTerminalDevice stdout
