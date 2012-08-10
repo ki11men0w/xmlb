@@ -53,6 +53,7 @@ data Flags = Flags
                spaces :: Maybe Int,
                normalize_space :: Bool,
                preserve_all_space :: Bool,
+               no_close_tag :: Bool,
                inFileNames :: [String]
              } deriving (Show, Data, Typeable)
                                 
@@ -75,12 +76,13 @@ opts' = getProgName >>= \programName -> return $
                   &= opt (show defaultSpaceIdent),
                 normalize_space =
                   def
-                  &= help "Trim leading and trailing spaces of text fields"
-                  &= name normalize_space_oname,
+                  &= help "Trim leading and trailing spaces of text fields",
                 preserve_all_space =
                   def
-                  &= help "Preserve all spaces in text fields even if text consists only of spaces"
-                  &= name preserve_all_space_oname,
+                  &= help "Preserve all spaces in text fields even if text consists only of spaces",
+                no_close_tag =
+                  def
+                  &= help "Do not make close tag for elements without character data (for example <br/>)",
                 
                 inFileNames =
                   def &= args &= typ "XMLFILE1 [XMLFILE2 ...]"
@@ -255,22 +257,22 @@ data ParseConfig = ParseConfig {
                                  outputEncoding :: String,
                                  identString :: String,
                                  normalizeSpace :: Bool,
-                                 preserveAllSpaces :: Bool
+                                 preserveAllSpaces :: Bool,
+                                 noCloseTag :: Bool
                                }
 
 data ParseState = ParseState { identLevel :: Int,
                                elems :: [SaxElementWrapper],
                                lastElem :: LastElem,
-                               postponedElems :: [SaxElement],
+                               postponedCharData :: [String],
+                               postponedOpenTag :: Maybe String,
                                result :: String
                              }
 
-data WaitingFor = Wait4CloseTagOrNotSpaceText
-
 data SaxElementWrapper = SaxElement' SaxElement | SaxError' (Maybe String)
 
-parseDoc :: Handle -> FilePath -> Handle ->Maybe EncodingName -> Maybe EncodingName -> String -> Bool -> Bool -> IO ()
-parseDoc inH inFileName outH inputEncoding outputEncoding identString normalizeSpace preserveAllSpaces = do
+parseDoc :: Handle -> FilePath -> Handle ->Maybe EncodingName -> Maybe EncodingName -> String -> Bool -> Bool -> Bool -> IO ()
+parseDoc inH inFileName outH inputEncoding outputEncoding identString normalizeSpace preserveAllSpaces noCloseTag = do
   
   hSetBinaryMode inH True
   
@@ -325,8 +327,9 @@ parseDoc inH inFileName outH inputEncoding outputEncoding identString normalizeS
        let c = ParseConfig {outputEncoding = getEncodingName4XmlHeader outputEncodingName,
                             identString = identString,
                             normalizeSpace = normalizeSpace,
-                            preserveAllSpaces = preserveAllSpaces}
-           s = ParseState {identLevel=0, elems=elms, lastElem = LastElemNothing, postponedElems = [], result = ""}
+                            preserveAllSpaces = preserveAllSpaces,
+                            noCloseTag = noCloseTag}
+           s = ParseState {identLevel=0, elems=elms, lastElem = LastElemNothing, postponedCharData = [], postponedOpenTag = Nothing, result = ""}
            !x = printTree c s
          
        hPutStr tmpH x
@@ -340,7 +343,7 @@ parseDoc inH inFileName outH inputEncoding outputEncoding identString normalizeS
 
 showElement :: SaxElement -> String
 showElement (SaxProcessingInstruction (target, value)) =  "<?" ++ target ++ " " ++ value ++ "?>"
-showElement (SaxElementOpen name attrs)                =  "<"  ++ name ++ showAttributes attrs ++ ">"
+showElement (SaxElementOpen name attrs)                =  "<"  ++ name ++ showAttributes attrs
 showElement (SaxElementClose name)                     =  "</" ++ name ++ ">"
 showElement (SaxElementTag name attrs)                 =  "<"  ++ name ++ showAttributes attrs ++ "/>"
 showElement (SaxCharData s)                            =  s
@@ -428,15 +431,30 @@ setLastElem le = do
   st <- get
   put $ st {lastElem = le}
   
-putPostponedElem :: SaxElement -> WaitingFor -> Parsing ()
-putPostponedElem e whatingFor = do
+getLastElem :: Parsing LastElem
+getLastElem = do
   st <- get
-  put $ st {postponedElems = postponedElems st ++ [e]}
+  return $ lastElem st
+  
+putPostponedCharData :: String -> Parsing ()
+putPostponedCharData cd = do
+  st <- get
+  put $ st {postponedCharData = postponedCharData st ++ [cd]}
 
-clearPostponedElems :: Parsing ()
-clearPostponedElems = do
+putPostponedOpenTag :: String -> Parsing ()
+putPostponedOpenTag tagName = do
   st <- get
-  put $ st {postponedElems = []}
+  put $ st {postponedOpenTag = Just tagName}
+  
+clearPostponedOpenTag :: Parsing ()
+clearPostponedOpenTag  = do
+  st <- get
+  put $ st {postponedOpenTag = Nothing}
+  
+clearPostponedCharData :: Parsing ()
+clearPostponedCharData = do
+  st <- get
+  put $ st {postponedCharData = []}
   
 
 getOutputEncoding :: Parsing String
@@ -447,15 +465,63 @@ getOutputEncoding = do
 xmlEscape' :: String -> String
 xmlEscape' s = s
 
+savePostponedCharData :: Parsing ()
+savePostponedCharData = do
+  st <- get
+  cfg <- ask
+  let cdata = concat $ postponedCharData st
+  let normalizeSpace' = normalizeSpace cfg
+  let allSpaces = all isSpace cdata
+  
+  unless allSpaces $ do
+    let cdata_finished =
+          if normalizeSpace'
+          then TXT.unpack $ TXT.strip $ TXT.pack cdata
+          else cdata
+    unless (null cdata_finished) $ do
+      closePostponedOpenTag
+      printCharData $ cdata_finished
+      setLastElem LastElemChars
+  
+  clearPostponedCharData
+
+completePostponedOpenTag :: Parsing Bool
+completePostponedOpenTag = do
+  st <- get
+  cfg <- ask
+  let withCloseTag = not $ noCloseTag cfg
+  case postponedOpenTag st of
+    Nothing -> return False
+    Just tagName -> do print' $ if withCloseTag
+                                then "></" ++ tagName ++ ">"
+                                else " />"
+                       clearPostponedOpenTag
+                       return True
+  
+closePostponedOpenTag :: Parsing ()
+closePostponedOpenTag = do
+  st <- get
+  cfg <- ask
+  case postponedOpenTag st of
+    Nothing -> return ()
+    Just tagName -> do print' ">"
+  clearPostponedOpenTag
+
+printCharData :: String -> Parsing ()
+printCharData = print' . xmlEscape'
+  
 printElem :: SaxElement -> Parsing ()
 printElem e = do
   st <- get
   cfg <- ask
   let normalizeSpace' = normalizeSpace cfg
       preserveAllSpaces' = preserveAllSpaces cfg
-      postponedElems' = postponedElems st
+      postponedCharData' = postponedCharData st
+      lastElem' = lastElem st
   case e of
-    x@(SaxProcessingInstruction ("xml", _)) -> do case lastElem st of
+    x@(SaxProcessingInstruction ("xml", _)) -> do savePostponedCharData
+                                                  closePostponedOpenTag
+                                                  case lastElem' of
                                                     LastElemNothing  -> return ()
                                                     _                -> print' "\n"
                                                   
@@ -463,57 +529,65 @@ printElem e = do
                                                   printIdent $ showSaxProcessingInstruction x enc
                                                   setLastElem LastElemXmlHeader
       
-    x@(SaxProcessingInstruction _) -> do print' "\n"
+    x@(SaxProcessingInstruction _) -> do savePostponedCharData
+                                         closePostponedOpenTag
+                                         print' "\n"
                                          printIdent (showElement x) 
                                          setLastElem LastElemProcessingInstruction
       
-    x@(SaxElementOpen _ _)  -> do print' "\n"
-                                  printIdent (showElement x) 
-                                  identMore
-                                  setLastElem LastElemOpenTag
+    x@(SaxElementOpen tagName _)  -> do savePostponedCharData
+                                        closePostponedOpenTag
+                                        print' "\n"
+                                        printIdent (showElement x) 
+                                        identMore
+                                        setLastElem LastElemOpenTag
                                   
-    x@(SaxElementClose _ )  -> do identLess
-                                  case lastElem st of
-                                    LastElemChars   -> return ()
-                                    LastElemOpenTag -> return ()
-                                    _               -> do print' "\n"
-                                                          printIdent ""
-                                  print' $ showElement x
+    x@(SaxElementClose _ )  -> do savePostponedCharData
+                                  closed <- completePostponedOpenTag
+                                  identLess
+                                  unless closed $ do
+                                    case lastElem' of
+                                      -- Если внутри тэга были текстовые данные, то закрываем тэг без
+                                      -- переноса строки
+                                      LastElemChars   -> return ()
+                                      -- Если закрывающий тэг идет сразу за открывающим, то помещаем
+                                      -- его на той-же строке
+                                      LastElemOpenTag -> return ()
+                                      -- Во всех остальных случаях помещаем закрывающий тэг на новой
+                                      -- строке и выравниваем его под соответвтвующим открывающим
+                                      -- тэгом
+                                      _               -> do print' "\n"
+                                                            printIdent ""
+                                    print' $ showElement x
                                   setLastElem LastElemCloseTag
-                                  clearPostponedElems
     
-    x@(SaxCharData s)       -> case 1 of
-                                 _
-                                   | preserveAllSpaces' -> 
-                                     do print' $ xmlEscape' s
-                                        setLastElem LastElemChars
-                                   | (all isSpace s) && lastElem st == LastElemOpenTag && normalizeSpace' -> return ()
-                                   | (all isSpace s) && lastElem st == LastElemChars && normalizeSpace' -> putPostponedElem x Wait4CloseTagOrNotSpaceText
-                                   | otherwise -> do clearPostponedElems
-                                                     local (\cfg -> cfg {preserveAllSpaces = True}) $ mapM_ printElem postponedElems'
-                                                     print' $ xmlEscape' s
-                                                     setLastElem LastElemChars
-                                                     clearPostponedElems
-                               -- unless (all isSpace s && lastElemIsNotChar) $
-                               --   do print' $ xmlEscape' s
-                               --      setLastElem LastElemChars
-                               --   where 
-                               --     lastElemIsNotChar = case lastElem st of
-                               --                           LastElemChars -> False
-                               --                           _             -> True
+    x@(SaxCharData s)       -> do case s of
+                                    "" -> return ()
+                                    _
+                                      | preserveAllSpaces'-> do printCharData s
+                                                                setLastElem LastElemChars
+                                      | otherwise -> putPostponedCharData s
                                             
-    x@(SaxElementTag _ _)   -> do print' "\n"
+    x@(SaxElementTag _ _)   -> do savePostponedCharData
+                                  closePostponedOpenTag
+                                  print' "\n"
                                   printIdent (showElement x) 
                                   setLastElem LastElemCloseTag
                                   
-    x@(SaxComment s)        -> do case lastElem st of
+    x@(SaxComment s)        -> do savePostponedCharData
+                                  closePostponedOpenTag
+                                  case lastElem' of
                                     LastElemXmlHeader -> unless (isEmacsInstructions s) (print' "\n")
                                     _ -> print' "\n"
                                   printIdent (showElement x)
                                   setLastElem LastElemComment
-    x@(SaxReference r)      -> do print' $ showElement x
+    x@(SaxReference r)      -> do savePostponedCharData
+                                  closePostponedOpenTag
+                                  print' $ showElement x
                                   setLastElem LastElemChars
-    x                       -> print' $ showElement x
+    x                       -> do savePostponedCharData
+                                  closePostponedOpenTag
+                                  print' $ showElement x
         
     where isEmacsInstructions s = s =~ " -\\*- +.+:.+ -\\*- " :: Bool
     
@@ -557,7 +631,7 @@ processOneSource opts inFileName = do
   hSetBinaryMode inFileH True
   hSetBinaryMode outFileH True
   
-  parseDoc inFileH inFileDecoratedName outFileH inputEncoding outputEncoding identString (normalize_space opts) (preserve_all_space opts)
+  parseDoc inFileH inFileDecoratedName outFileH inputEncoding outputEncoding identString (normalize_space opts) (preserve_all_space opts) (no_close_tag opts)
   
   when inPlace $
     do hClose inFileH
@@ -596,5 +670,5 @@ main = do
                            then ["-"]
                            else inFileNames opts
 
-  mapM_ (processOneSource opts) inFileSources 
+  mapM_ (processOneSource opts) inFileSources
       
