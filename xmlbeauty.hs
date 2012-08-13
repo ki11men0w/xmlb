@@ -196,6 +196,7 @@ mkTextEncoding' en =
   -- Если кодировка совпадает с одной из обязательно реализованных в стандартной
   -- библиотеке то выбираем ее явно, если нет, то используем mkTextEncoding
   case normalized of
+    "ASCII"    -> return latin1
     "ISO88591" -> return latin1
     "UTF8"     -> return utf8
     "UTF16"    -> return utf16
@@ -219,6 +220,7 @@ getEncodingName4XmlHeader en =
     "UTF32BE" -> "UTF-32"
     "CP1251"  -> "WINDOWS-1251"
     "CP866"   -> "WINDOWS-866"
+    "ASCII"   -> "ISO-8859-1"
     _         -> en
     
     where normalized = filter (\x -> not $ elem x "_- ") (map toUpper en)  
