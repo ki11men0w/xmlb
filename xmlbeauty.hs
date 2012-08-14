@@ -294,6 +294,7 @@ parseDoc inH inFileName outH inputEncoding outputEncoding identString = do
     do let outputEncodingName = fromMaybe inputEncodingName outputEncoding
        -- Если выходная кодировка не указана явно, то подразумевается что выходная кодировка должна
        -- совпадать с входной.
+       hSetBinaryMode tmpH True
        hSetEncoding tmpH =<< mkTextEncoding' (fromMaybe inputEncodingName outputEncoding)
    
        let c = ParseConfig {outputEncoding = getEncodingName4XmlHeader outputEncodingName, identString = identString}
