@@ -5,27 +5,18 @@ module Main where
 
 import System.Environment
 import System.Console.CmdArgs
---import System.Exit
---import Data.Maybe ( fromMaybe )
 import System.IO
 import System.IO.Temp
 import System.Directory
 import System.FilePath
---import System.IO.Error
 import Data.List
---import Text.XML.HaXml.Pretty
 import Text.XML.HaXml.SAX
 import Text.XML.HaXml.Types
---import Text.XML.HaXml.Escape
---import Text.XML.HaXml.XmlContent.Parser
---import Control.Monad.Trans
---import Control.Monad
 import Control.Monad.State
 import Control.Monad.Reader
 
 import Data.Char
 import Data.Maybe
---import System.IO.Error (catch)
 import Control.Exception (SomeException, catch)
 import Prelude hiding (catch)
 import Text.Regex.Posix
@@ -38,10 +29,8 @@ import Data.Text.Encoding
 
 import Control.Parallel.Strategies (rdeepseq, withStrategy)
 
-programVersion = "2.0.0.2 (haskell)"
+programVersion = "2.1.0.0 (haskell)"
 
-defaultInputEncoding  = "UTF-8"
-defaultLegacyOutputEncoding = "ISO-8859-1"
 defaultSpaceIdent = 3
 
 
@@ -52,7 +41,7 @@ data Flags = Flags
                input_encoding :: Maybe String,
                spaces :: Maybe Int,
                inFileNames :: [String]
-             } deriving (Show, Data, Typeable)
+             } deriving (Data, Typeable)
                                 
 opts' = getProgName >>= \programName -> return $
         Flags { backup =
@@ -77,22 +66,25 @@ opts' = getProgName >>= \programName -> return $
               }
         &= program programName
         &= summary ("XML Beautifier version " ++ programVersion)
-        &= details ["Beautifies (makes human readable) xml file(s). If input data is common files and no redirection of STDOUT is specified than input files will be changed inplace. If STDIN is not a file than result will be printed to STDOUT.",
+        &= details ["Beautifies (makes human readable) xml file(s). If input data is/are common file(s) and no redirection of STDOUT is specified than input files will be changed inplace. If STDIN is not a terminal (e.g. because of redirection) than result will be printed to STDOUT.",
                     "usage: " ++ programName ++ " OPTIONS XMLFILE1 [XMLFILE2 ...]",
                     "       " ++ programName ++ " OPTIONS < somefile.xml > somefile.xml"]
 
 
 checkOptions opts = do
-  return ()
+  hIsTerminalDevice stdin >>= \t -> checkSources t (inFileNames opts)
   where
     showOption (x:[]) = "-" ++ [x]
     showOption x      = "--" ++ x
+
+    checkSources False (x:_) = error $ "As a data source, you must specify either STDIN or file(s) listed in the command line, but not both"
+    checkSources _ _ = return ()
+
   
 
 type EncodingName = String
 
 data BomTestResult = FullyMatch EncodingName | SemiMatch EncodingName | NotMatch
-                   deriving (Show)
 
 getXmlEncoding :: Handle -> IO (Maybe EncodingName, BS.ByteString)
 getXmlEncoding inH = do
@@ -114,7 +106,6 @@ getXmlEncoding inH = do
                           else do
                             test_str <- BS.hGet inH 1 >>= \c -> return $ BS.concat [s, c]
                             let bt = bomTest test_str
-                            --hPutStrLn stderr ((show bt) ++ ": '" ++ (concat $ intersperse "," (map (show . ord) (take 20 test_str))) ++ "'")
                             case bomTest test_str of
                               x@(NotMatch)     -> return (x, test_str)
                               x@(FullyMatch e) -> return (x, BS.empty)
@@ -236,7 +227,7 @@ getEncodingName4XmlHeader en =
 type Parsing a = ReaderT ParseConfig (State ParseState) a
 
 data LastElem = LastElemNothing | LastElemXmlHeader | LastElemProcessingInstruction | LastElemOpenTag | LastElemCloseTag | LastElemChars | LastElemComment
-              deriving (Eq, Show)
+              deriving (Eq)
 
 data ParseConfig = ParseConfig { 
                                  outputEncoding :: String,
@@ -245,7 +236,7 @@ data ParseConfig = ParseConfig {
 
 type SkippedCountType = Integer
 data SkippedIdent = SkippedNothing | SkippingJustEnded | SkippedCount SkippedCountType
-                  deriving (Eq, Show)
+                  deriving (Eq)
 data ParseState = ParseState { identLevel :: Int,
                                elems :: [SaxElementWrapper],
                                lastElem :: LastElem,
@@ -349,9 +340,6 @@ identLess = do
   put $ x { identLevel = identLevel x -1 }
   
   
---justIO :: IO () -> Parsing ()
---justIO = liftIO
-
 print' :: String -> Parsing ()
 print' s = do
   st <- get
