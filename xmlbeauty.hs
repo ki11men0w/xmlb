@@ -49,7 +49,7 @@ opts' = getProgName >>= \programName -> return $
                    &= help "Backup original files",
                 output_encoding =
                   def
-                  &= help ("Encoding for OUTPUT documents (default is encoding of input document)")
+                  &= help "Encoding for OUTPUT documents (default is encoding of input document)"
                   &= explicit &= name "e" &= name "encoding" &= name "o"
                   &= typ  "ENC",
                 input_encoding =
@@ -71,13 +71,13 @@ opts' = getProgName >>= \programName -> return $
                     "       " ++ programName ++ " OPTIONS < somefile.xml > somefile.xml"]
 
 
-checkOptions opts = do
+checkOptions opts =
   hIsTerminalDevice stdin >>= \t -> checkSources t (inFileNames opts)
   where
-    showOption (x:[]) = "-" ++ [x]
+    showOption (x:[]) = '-' : [x]
     showOption x      = "--" ++ x
 
-    checkSources False (x:_) = error $ "As a data source, you must specify either STDIN or file(s) listed in the command line, but not both"
+    checkSources False (x:_) = error "As a data source, you must specify either STDIN or file(s) listed in the command line, but not both"
     checkSources _ _ = return ()
 
   
@@ -95,7 +95,7 @@ getXmlEncoding inH = do
   where
     bomTest' :: IO (Maybe EncodingName, BS.ByteString)
     bomTest' = do
-      cr <- checkNextByte $ BS.empty
+      cr <- checkNextByte BS.empty
       case cr of
         (FullyMatch enc, s) -> return (Just enc, s)
         (NotMatch, s)       -> return (Nothing, s)
@@ -104,10 +104,10 @@ getXmlEncoding inH = do
         checkNextByte s = hIsEOF inH >>= \eof ->
                           if eof then return (NotMatch, s)
                           else do
-                            test_str <- BS.hGet inH 1 >>= \c -> return $ BS.concat [s, c]
+                            test_str <- BS.hGet inH 1 >>= \c -> return $ s `BS.append` c
                             let bt = bomTest test_str
                             case bomTest test_str of
-                              x@(NotMatch)     -> return (x, test_str)
+                              x@NotMatch       -> return (x, test_str)
                               x@(FullyMatch e) -> return (x, BS.empty)
                               x@(SemiMatch _)  -> checkNextByte test_str
           
@@ -144,8 +144,8 @@ getXmlEncoding inH = do
                               | otherwise -> NotMatch
                           
                       check_utf7'BOM =
-                            if BS.isPrefixOf xml utf7'BOMstart then
-                              -- Для UTF-7 последний символ BOM может содержать 
+                            if xml `BS.isPrefixOf` utf7'BOMstart then
+                              -- Для UTF-7 последний символ BOM может содержать
                               -- любой из четырех символов.
                               let xml' = BS.drop (BS.length utf7'BOMstart) xml
                               in case 1 of
@@ -159,11 +159,8 @@ getXmlEncoding inH = do
                       fully_matched = find (\x -> case x of; FullyMatch enc -> True; otherwithe -> False) tests
                       semi_matched  = find (\x -> case x of; SemiMatch enc -> True; otherwithe -> False) tests
                       
-                  in case fully_matched of
-                    Just x -> x
-                    Nothing -> case semi_matched of
-                      Just x -> x
-                      Nothing -> NotMatch
+                  --in fromMaybe (fromMaybe NotMatch semi_matched) fully_matched
+                  in flip fromMaybe fully_matched $ fromMaybe NotMatch semi_matched
 
     xmlDeclTest :: BS.ByteString -> IO (Maybe EncodingName, BS.ByteString)
     xmlDeclTest already_read_str = do
@@ -173,7 +170,7 @@ getXmlEncoding inH = do
         _
           | eof -> return (Nothing, already_read_str)
           | BS.length already_read_str > 1000 -> return (Nothing, already_read_str)
-          | True -> do new_str <- BS.hGet inH howMatchRead >>= \c -> return $ BS.concat [already_read_str, c]
+          | True -> do new_str <- BS.hGet inH howMatchRead >>= \c -> return $ already_read_str `BS.append` c
                        let test_str = dropWhile isSpace $ C8.unpack new_str
                            (_, _, _, enc) = test_str =~ "<\\?xml[ \t](.*encoding=\"([^\"]+)\")?.*\\?>" :: (String, String, String, [String])
                        case enc of
@@ -189,8 +186,8 @@ getXmlEncoding inH = do
                                         
 
 
-mkTextEncoding' :: EncodingName -> IO TextEncoding       
-mkTextEncoding' en = 
+mkTextEncoding' :: EncodingName -> IO TextEncoding
+mkTextEncoding' en =
   -- Если кодировка совпадает с одной из обязательно реализованных в стандартной
   -- библиотеке то выбираем ее явно, если нет, то используем mkTextEncoding
   case normalized of
@@ -202,11 +199,11 @@ mkTextEncoding' en =
     "UTF16BE"  -> return utf16be
     "UTF32LE"  -> return utf32le
     "UTF32BE"  -> return utf32be
-    "WINDOWS1251" -> mkTextEncoding ("CP1251")
-    "WINDOWS866"  -> mkTextEncoding ("CP866")
+    "WINDOWS1251" -> mkTextEncoding "CP1251"
+    "WINDOWS866"  -> mkTextEncoding "CP866"
     _          -> mkTextEncoding (map toUpper en)
     
-    where normalized = filter (\x -> not $ elem x "_- ") (map toUpper en)  
+    where normalized = filter (`notElem` "_- ") (map toUpper en)
 
 -- Возвращает имя кодировки для вставки в атрибут encoding заголовка XML
 getEncodingName4XmlHeader :: EncodingName -> String
@@ -221,7 +218,7 @@ getEncodingName4XmlHeader en =
     "ASCII"   -> "ISO-8859-1"
     _         -> en
     
-    where normalized = filter (\x -> not $ elem x "_- ") (map toUpper en)  
+    where normalized = filter (`notElem` "_- ") (map toUpper en)
 
 
 type Parsing a = ReaderT ParseConfig (State ParseState) a
@@ -229,7 +226,7 @@ type Parsing a = ReaderT ParseConfig (State ParseState) a
 data LastElem = LastElemNothing | LastElemXmlHeader | LastElemProcessingInstruction | LastElemOpenTag | LastElemCloseTag | LastElemChars | LastElemComment
               deriving (Eq)
 
-data ParseConfig = ParseConfig { 
+data ParseConfig = ParseConfig {
                                  outputEncoding :: String,
                                  identString :: String
                                }
@@ -264,7 +261,7 @@ parseDoc inH inFileName outH inputEncoding outputEncoding identString = do
     
           inputEncoding <- mkTextEncoding' inputEncodingName
       
-          inpt' <- withSystemTempFile "xmlbeauty.header" $ \_ -> \tmpH ->
+          inpt' <- withSystemTempFile "xmlbeauty.header" $ \_ tmpH ->
                     if BS.null inpt' then
                       return ""
                     else
@@ -274,12 +271,12 @@ parseDoc inH inFileName outH inputEncoding outputEncoding identString = do
                          hSetEncoding tmpH inputEncoding
                          -- Все эти strict* для того что-бы можно было закрыть
                          -- временный файл сразуже
-                         !x <- (withStrategy rdeepseq) `liftM` hGetContents tmpH
+                         !x <- withStrategy rdeepseq `liftM` hGetContents tmpH
                          return x
                     
           hSetEncoding inH inputEncoding
           inpt'' <- hGetContents inH
-          return $ (inpt' ++ inpt'', inputEncodingName)
+          return (inpt' ++ inpt'', inputEncodingName)
         
         Nothing -> do
           -- Если кодировку определить не смогли, то считаем, что
@@ -290,12 +287,12 @@ parseDoc inH inFileName outH inputEncoding outputEncoding identString = do
           -- hSetEncoding) не позволяет это сделать, то используем
           -- здесь функционал Data.Text.Encoding.
           inpt'' <- BS.hGetContents inH
-          return $ (TXT.unpack $ decodeUtf8 $ BS.append inpt' inpt'', "UTF-8")
+          return (TXT.unpack $ decodeUtf8 $ BS.append inpt' inpt'', "UTF-8")
   
-  let (elms', err') = saxParse inFileName (inpt)
-      elms = (map SaxElement' elms') ++ [SaxError' err']
+  let (elms', err') = saxParse inFileName inpt
+      elms = map SaxElement' elms' ++ [SaxError' err']
   
-  withSystemTempFile "xmlbeauty.xml" $ \_ -> \tmpH ->
+  withSystemTempFile "xmlbeauty.xml" $ \_ tmpH ->
     do let outputEncodingName = fromMaybe inputEncodingName outputEncoding
        -- Если выходная кодировка не указана явно, то подразумевается что выходная кодировка должна
        -- совпадать с входной.
@@ -343,16 +340,15 @@ identLess = do
 print' :: String -> Parsing ()
 print' s = do
   st <- get
-  put $ st { result = (result st) ++ s }
+  put $ st { result = result st ++ s }
 
 printIdent :: String -> Parsing ()
 printIdent s = do cfg <- ask
                   st <- get
-                  --print' $ replicate (identLevel x) '\t' ++ s
-                  print' $ concat (take (identLevel st) (repeat (identString cfg))) ++ s
+                  print' $ concat (replicate (identLevel st) (identString cfg)) ++ s
 
 unwrapSaxElem :: SaxElementWrapper -> Maybe SaxElement
-unwrapSaxElem we = 
+unwrapSaxElem we =
   case we of
     SaxElement' e -> Just e
     SaxError' Nothing -> Nothing
@@ -387,11 +383,11 @@ unskipIdent = do
   st <- get
   case skippedIdent st of
     SkippedNothing -> return ()
-    SkippingJustEnded -> do
+    SkippingJustEnded ->
       put $ st {skippedIdent = SkippedNothing}
-    SkippedCount 1 -> do
+    SkippedCount 1 ->
       put $ st {skippedIdent = SkippingJustEnded}
-    SkippedCount cnt -> do
+    SkippedCount cnt ->
       put $ st {skippedIdent = SkippedCount (cnt - 1)}
 
 getSkippedIdent :: Parsing SkippedIdent
@@ -418,8 +414,8 @@ savePostponedCharData next = do
           | prev /= LastElemChars && next /= LastElemChars -> ""
           | otherwise -> postponedCharData'
 
-  unless (null toPrint) $ do    
-    print' $ formatCharData $ xmlEscape' $ toPrint
+  unless (null toPrint) $ do
+    print' $ formatCharData $ xmlEscape' toPrint
     setLastElem LastElemChars
     
   put $ st {postponedCharData = []}
@@ -432,11 +428,12 @@ getOutputEncoding = do
   return $ outputEncoding cfg
 
 xmlEscape' :: String -> String
-xmlEscape' s =
-  concat $ map (\c -> case c of
-                 '<' -> "&lt;"
-                 '&' -> "&amp;"
-                 c   -> [c]) s
+xmlEscape' =
+  concatMap $ \c ->
+  case c of
+    '<' -> "&lt;"
+    '&' -> "&amp;"
+    c   -> [c]
 
 formatCharData s = s --"<![CDATA[" ++ s ++ "]]>"
 
@@ -476,10 +473,12 @@ showAttributes attrs =
           where
             showAttrValues :: [Either String Reference] -> String
             showAttrValues [] = []
-            showAttrValues (Left str : vs)  = concat (map (\c -> case c of
-                                                              '"' -> "&quot;"
-                                                              '&' -> "&amp;"
-                                                              _ -> [c]) str) ++ showAttrValues vs
+            showAttrValues (Left str : vs)  = concatMap (\c ->
+                                                          case c of
+                                                            '"' -> "&quot;"
+                                                            '&' -> "&amp;"
+                                                            _ -> [c]) str
+                                              ++ showAttrValues vs
             showAttrValues (Right ref : vs) =
               case ref of
                 RefEntity name -> "&" ++ name ++ ";"
@@ -523,13 +522,13 @@ printElem e = do
                                   --getSkippedIdent >>= \c -> getIdent >>= \i -> print' $ "{close: skippedCnt=" ++ show c ++ ", ident="++ show i ++"}"
                                   conditionalSkipIdentSimply
                                   conditionalNewLine
-                                  conditionalPrintIdent (showElement x) 
+                                  conditionalPrintIdent (showElement x)
                                   --getSkippedIdent >>= \c -> getIdent >>= \i -> print' $ "{close: skippedCnt=" ++ show c ++ ", ident="++ show i ++"}"
                                   setLastElem LastElemCloseTag
                                   
     x@(SaxElementOpen _ _)  -> do savePostponedCharData LastElemOpenTag
                                   conditionalNewLine
-                                  conditionalPrintIdent (showElement x) 
+                                  conditionalPrintIdent (showElement x)
                                   conditionalIdentMore
                                   setLastElem LastElemOpenTag
                                   
@@ -552,7 +551,7 @@ printElem e = do
       lastElem' <- getLastElem
       case 1 of
         _
-          | (all isSpace s) && lastElem' /= LastElemChars -> putPostponedCharData s
+          | all isSpace s && lastElem' /= LastElemChars -> putPostponedCharData s
           | otherwise -> do savePostponedCharData LastElemChars
                             print' $ formatCharData $ xmlEscape' s
                             setLastElem LastElemChars
@@ -570,19 +569,17 @@ printElem e = do
     conditionalPrintIdent x = do
       lastElem' <- getLastElem
       skippedIdent' <- getSkippedIdent
-      if lastElem' /= LastElemChars && skippedIdent' == SkippedNothing then printIdent x
-      else print' x
+      if lastElem' /= LastElemChars && skippedIdent' == SkippedNothing then printIdent x else print' x
 
     conditionalIdentMore = do
       lastElem' <- getLastElem
       skippedIdent' <- getSkippedIdent
-      if lastElem' /= LastElemChars && skippedIdent' == SkippedNothing then identMore
-      else skipIdent
+      if lastElem' /= LastElemChars && skippedIdent' == SkippedNothing then identMore else skipIdent
     
     conditionalIdentLess = do
       lastElem' <- getLastElem
       skippedIdent' <- getSkippedIdent
-      when (skippedIdent' == SkippedNothing || skippedIdent' == SkippingJustEnded) identLess
+      when (skippedIdent' `elem` [SkippedNothing, SkippingJustEnded]) identLess
       
                             
     conditionalSkipIdentSimply = do
@@ -623,7 +620,7 @@ processOneSource opts inFileName = do
                                             return (x, inFileP)
   (outFileP, outFileH) <-
     if inPlace
-      then openTempFile tmpDir "xmlbeauty.xml" 
+      then openTempFile tmpDir "xmlbeauty.xml"
       else return ("-", stdout)
   
   hSetBinaryMode inFileH True
@@ -663,5 +660,5 @@ main = do
                            then ["-"]
                            else inFileNames opts
 
-  mapM_ (processOneSource opts) inFileSources 
+  mapM_ (processOneSource opts) inFileSources
       
