@@ -404,11 +404,6 @@ putPostponedCharData e = do
   st <- get
   put $ st {postponedCharData = postponedCharData st ++ e}
 
-clearPostponedCharData :: Parsing ()
-clearPostponedCharData = do
-  st <- get
-  put $ st {postponedCharData = []}
-  
 savePostponedCharData :: LastElem  -- ^ Следующий элемент
                       -> Parsing ()
 savePostponedCharData next = do
@@ -423,11 +418,12 @@ savePostponedCharData next = do
           | prev /= LastElemChars && next /= LastElemChars -> ""
           | otherwise -> postponedCharData'
 
-  clearPostponedCharData
-  
   unless (null toPrint) $ do    
     print' $ formatCharData $ xmlEscape' $ toPrint
     setLastElem LastElemChars
+    
+  put $ st {postponedCharData = []}
+  
   
 
 getOutputEncoding :: Parsing String
