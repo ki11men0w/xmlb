@@ -436,7 +436,10 @@ getOutputEncoding = do
   return $ outputEncoding cfg
 
 xmlEscape' :: String -> String
-xmlEscape' s = s
+xmlEscape' s =
+  concat $ map (\c -> case c of
+                 '<' -> "&lt;"
+                 c   -> [c]) s
 
 formatCharData s = s --"<![CDATA[" ++ s ++ "]]>"
 
@@ -476,7 +479,7 @@ showAttributes attrs =
           where
             showAttrValues :: [Either String Reference] -> String
             showAttrValues [] = []
-            showAttrValues (Left str : vs)  = str ++ showAttrValues vs
+            showAttrValues (Left str : vs)  = concat (map (\c -> if c == '"' then "&quot;" else [c]) str) ++ showAttrValues vs
             showAttrValues (Right ref : vs) =
               case ref of
                 RefEntity name -> "&" ++ name ++ ";"
