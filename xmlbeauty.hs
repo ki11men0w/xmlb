@@ -435,6 +435,7 @@ xmlEscape' :: String -> String
 xmlEscape' s =
   concat $ map (\c -> case c of
                  '<' -> "&lt;"
+                 '&' -> "&amp;"
                  c   -> [c]) s
 
 formatCharData s = s --"<![CDATA[" ++ s ++ "]]>"
@@ -475,7 +476,10 @@ showAttributes attrs =
           where
             showAttrValues :: [Either String Reference] -> String
             showAttrValues [] = []
-            showAttrValues (Left str : vs)  = concat (map (\c -> if c == '"' then "&quot;" else [c]) str) ++ showAttrValues vs
+            showAttrValues (Left str : vs)  = concat (map (\c -> case c of
+                                                              '"' -> "&quot;"
+                                                              '&' -> "&amp;"
+                                                              _ -> [c]) str) ++ showAttrValues vs
             showAttrValues (Right ref : vs) =
               case ref of
                 RefEntity name -> "&" ++ name ++ ";"
