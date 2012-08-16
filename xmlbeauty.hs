@@ -654,11 +654,10 @@ main = do
   
   opts <- cmdArgs =<< opts'
   checkOptions opts
-  let inFileSources = if stdin_isatty && null (inFileNames opts)
-                      then error "No input data.\nUse '--help' command line flag to see the usage case."
-                      else if null (inFileNames opts)
-                           then ["-"]
-                           else inFileNames opts
+  let inFileSources = case (stdin_isatty, inFileNames opts) of
+        (True, []) -> error "No input data.\nUse '--help' command line flag to see the usage case."
+        (_, [])    -> ["-"]
+        (_, x)     -> x
 
   mapM_ (processOneSource opts) inFileSources
       
