@@ -71,14 +71,16 @@ opts' = getProgName >>= \programName -> return $
                     "       " ++ programName ++ " OPTIONS < somefile.xml > somefile.xml"]
 
 
-checkOptions opts =
-  hIsTerminalDevice stdin >>= \t -> checkSources t (inFileNames opts)
+checkOptions opts = do
+  hIsTerminalDevice stdin >>= \t ->
+    when (not t && (not $ null $ inFileNames opts)) $
+      error "As a data source, you must specify either STDIN or file(s) listed in the command line, but not both."
+  
+  when (backup opts && null (inFileNames opts)) $
+    error "--backup option makes sence only when data source is a plain file(s) listed in the command line, not STDIN."
   where
     showOption (x:[]) = '-' : [x]
     showOption x      = "--" ++ x
-
-    checkSources False (x:_) = error "As a data source, you must specify either STDIN or file(s) listed in the command line, but not both"
-    checkSources _ _ = return ()
 
   
 
