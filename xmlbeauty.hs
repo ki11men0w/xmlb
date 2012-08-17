@@ -17,8 +17,6 @@ import Control.Monad.Reader
 
 import Data.Char
 import Data.Maybe
-import Control.Exception (SomeException, catch)
-import Prelude hiding (catch)
 import Text.Regex.Posix
 
 import qualified Data.ByteString as BS
@@ -251,6 +249,7 @@ parseDoc :: Handle -> FilePath -> Handle ->Maybe EncodingName -> Maybe EncodingN
 parseDoc inH inFileName outH inputEncoding outputEncoding identString = do
   
   hSetBinaryMode inH True
+  hSetBinaryMode outH True
   
   let getInputEncoding :: IO (Maybe EncodingName, BS.ByteString)
       getInputEncoding = case inputEncoding of
@@ -610,7 +609,6 @@ printTree cfg st =
 
 processOneSource :: Flags -> FilePath -> IO ()
 processOneSource opts inFileName = do
-  tmpDir <- catch getTemporaryDirectory (\(e :: SomeException) -> return ".")
   let inFileP = inFileName
   
   stdout_isatty <- hIsTerminalDevice stdout
@@ -620,25 +618,20 @@ processOneSource opts inFileName = do
                                     then return (stdin, "stdin")
                                     else do x <- openFile inFileP ReadMode
                                             return (x, inFileP)
-  (outFileP, outFileH) <-
-    if inPlace
-      then openTempFile tmpDir "xmlbeauty.xml"
-      else return ("-", stdout)
   
-  hSetBinaryMode inFileH True
-  hSetBinaryMode outFileH True
+  let parseDoc' outFileH = parseDoc inFileH inFileDecoratedName outFileH inputEncoding outputEncoding identString
   
-  parseDoc inFileH inFileDecoratedName outFileH inputEncoding outputEncoding identString
-  
-  when inPlace $
-    do hClose inFileH
-       hClose outFileH
-       when (backup opts) (renameFile inFileP $ addExtension inFileP "bak")
-       copyFile outFileP inFileP
-       removeFile outFileP
-            
-  
-  
+  if inPlace
+  then
+    withSystemTempFile "xmlbeauty.xml" $ \outFileP outFileH -> do
+      parseDoc' outFileH
+      hClose inFileH
+      hClose outFileH
+      when (backup opts) (renameFile inFileP $ addExtension inFileP "bak")
+      copyFile outFileP inFileP
+  else
+    parseDoc' stdout
+    
   where
     inputEncoding = input_encoding opts
     outputEncoding = output_encoding opts
