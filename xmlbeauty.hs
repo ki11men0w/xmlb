@@ -63,6 +63,10 @@ checkOptions opts = do
     when (not t && (not $ null $ inFileNames opts)) $
       error "As a data source, you must specify either STDIN or file(s) listed in the command line, but not both."
   
+  hIsTerminalDevice stdout >>= \t ->
+    when (backup opts && not t) $
+      error "--backup option makes sence only when STDOUT is not redirected."
+  
   when (backup opts && null (inFileNames opts)) $
     error "--backup option makes sence only when data source is a plain file(s) listed in the command line, not STDIN."
   when (strip opts && (isJust (spaces opts))) $
