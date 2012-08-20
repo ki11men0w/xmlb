@@ -19,8 +19,8 @@ defaultSpaceIdent = 3
 -- | Флаги коммандной строки
 data Flags = Flags
              { backup :: Bool,
-               output_encoding :: Maybe String,
-               input_encoding :: Maybe String,
+               output_encoding :: Maybe EncodingName,
+               input_encoding :: Maybe EncodingName,
                spaces :: Maybe Int,
                inFileNames :: [String]
              } deriving (Data, Typeable)
