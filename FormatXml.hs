@@ -2,7 +2,8 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 module FormatXml (
     processFile,
-    EncodingName
+    EncodingName,
+    FormatMode(..)
   )where
 
 import System.IO
@@ -25,8 +26,13 @@ import Data.Text.Encoding
 
 import Control.Parallel.Strategies (rdeepseq, withStrategy)
 
-
 type EncodingName = String
+
+data FormatMode = ModeBeautify -- ^ Форматирование "ёлочкой"
+                  {
+                    identString :: EncodingName -- ^ Строка, которая будет использоваться для отступов.
+                  } 
+                | ModeStrip -- ^ Удаление всех незначащих пробельных символов
 
 processFile :: Handle   -- ^ Исходный файл с XML документом
             -> FilePath -- ^ Наименование источника с входным документом. Необходимо для передчи в
@@ -36,9 +42,9 @@ processFile :: Handle   -- ^ Исходный файл с XML документом
                                   -- то кодировка будет определена на основании BOM и заголовка XML.
             -> Maybe EncodingName -- ^ Здесь можно указать кодировку выходного файла. Если Nothing,
                                   -- то будет использована кодировка входного файла.
-            -> String -- ^ Здесь нужно указать строку, которая будет использоваться для отступов.
+            -> FormatMode -- ^ Режим преобразования
             -> IO ()
-processFile inH inFileName outH inputEncoding outputEncoding identString = do
+processFile inH inFileName outH inputEncoding outputEncoding mode = do
   
   hSetBinaryMode inH True
   hSetBinaryMode outH True
@@ -93,12 +99,14 @@ processFile inH inFileName outH inputEncoding outputEncoding identString = do
        hSetEncoding tmpH =<< mkTextEncoding' (fromMaybe inputEncodingName outputEncoding)
    
        let c = ParseConfig {outputEncoding = getEncodingName4XmlHeader outputEncodingName,
-                            identString = identString}
+                            mode = mode}
            s = ParseState {identLevel=0, elems=elms,
                            lastElem = LastElemNothing, penultElem = LastElemNothing,
                            postponedCharData = [], skippedIdent = SkippedNothing,
                            result = ""}
-           !x = printTree c s
+           !x = case mode of 
+             ModeStrip      -> printTreeStrip c s
+             ModeBeautify _ -> printTreeBeauty c s
          
        hPutStr tmpH x
        
@@ -108,33 +116,6 @@ processFile inH inFileName outH inputEncoding outputEncoding identString = do
        y <- hGetContents tmpH
        hPutStr outH y
        
-
-printTree  :: ParseConfig -> ParseState -> String
-printTree cfg st =
-  case elems st of
-    [] -> case lastElem st of
-                 LastElemCloseTag -> lastNewLine
-                 LastElemComment  -> lastNewLine
-                 LastElemProcessingInstruction -> lastNewLine
-                 _                -> ""
-                 where lastNewLine = "\n"
-    e:ex -> case unwrapSaxElem e of
-      Just e -> let st' = flip execState st{elems=ex, result = ""} $
-                          flip runReaderT cfg $
-                          printElem e
-                in result st' ++ printTree cfg st'
-      _ -> printTree cfg st{elems=ex}
-    
-
-    where
-      unwrapSaxElem :: SaxElementWrapper -> Maybe SaxElement
-      unwrapSaxElem we =
-        case we of
-          SaxElement' e -> Just e
-          SaxError' Nothing -> Nothing
-          SaxError' (Just s) -> error s
-    
-
 
 data BomTestResult = FullyMatch EncodingName | SemiMatch EncodingName | NotMatch
 
@@ -287,7 +268,7 @@ data LastElem = LastElemNothing -- ^ Признак того что тип элемента неизвестен
 
 data ParseConfig = ParseConfig {
                                  outputEncoding :: String,
-                                 identString :: String
+                                 mode :: FormatMode
                                }
 
 type SkippedCountType = Integer
@@ -396,8 +377,7 @@ identMore = do
 identLess :: Parsing ()
 identLess = do
   x <- get
-  put $ x { identLevel = identLevel x -1 }
-
+  when (identLevel x > 0) $ put $ x { identLevel = identLevel x -1 }
 
 skipIdent :: Parsing ()
 skipIdent = do
@@ -457,8 +437,34 @@ savePostponedCharData next = do
   put $ st {postponedCharData = []}
   
 
-printElem :: SaxElement -> Parsing ()
-printElem e = do
+printTreeBeauty  :: ParseConfig -> ParseState -> String
+printTreeBeauty cfg st =
+  case elems st of
+    [] -> case lastElem st of
+                 LastElemCloseTag -> lastNewLine
+                 LastElemComment  -> lastNewLine
+                 LastElemProcessingInstruction -> lastNewLine
+                 _                -> ""
+                 where lastNewLine = "\n"
+    e:ex -> case unwrapSaxElem e of
+      Just e -> let st' = flip execState st{elems=ex, result = ""} $
+                          flip runReaderT cfg $
+                          printElemBeauty e
+                in result st' ++ printTreeBeauty cfg st'
+      _ -> printTreeBeauty cfg st{elems=ex}
+    
+
+    where
+      unwrapSaxElem :: SaxElementWrapper -> Maybe SaxElement
+      unwrapSaxElem we =
+        case we of
+          SaxElement' e -> Just e
+          SaxError' Nothing -> Nothing
+          SaxError' (Just s) -> error s
+    
+
+printElemBeauty :: SaxElement -> Parsing ()
+printElemBeauty e = do
   st <- get
   cfg <- ask
   case e of
@@ -528,11 +534,11 @@ printElem e = do
                             setLastElem LastElemChars
         
                                             
-    (SaxReference (RefChar c)) -> printElem $ SaxCharData $ decodeRefChar c
+    (SaxReference (RefChar c)) -> printElemBeauty $ SaxCharData $ decodeRefChar c
     
     x@(SaxReference (RefEntity name)) -> do
       case decodeRefEntity name of
-        Just s -> printElem $ SaxCharData s
+        Just s -> printElemBeauty $ SaxCharData s
         Nothing -> do print' $ showElement x
                       setLastElem LastElemChars
       
@@ -551,7 +557,7 @@ printElem e = do
         printIdent :: String -> Parsing ()
         printIdent s = do cfg <- ask
                           st <- get
-                          print' $ concat (replicate (identLevel st) (identString cfg)) ++ s
+                          print' $ concat (replicate (identLevel st) ((identString . mode) cfg)) ++ s
 
     conditionalIdentMore = do
       lastElem' <- getLastElem
@@ -568,4 +574,99 @@ printElem e = do
       when (lastElem' == LastElemChars) skipIdentSimply
 
     
+
+printTreeStrip  :: ParseConfig -> ParseState -> String
+printTreeStrip cfg st =
+  case elems st of
+    [] -> ""
+    e:ex -> case unwrapSaxElem e of
+      Just e -> let st' = flip execState st{elems=ex, result = ""} $
+                          flip runReaderT cfg $
+                          printElemStrip e
+                in result st' ++ printTreeStrip cfg st'
+      _ -> printTreeStrip cfg st{elems=ex}
+    
+
+    where
+      unwrapSaxElem :: SaxElementWrapper -> Maybe SaxElement
+      unwrapSaxElem we =
+        case we of
+          SaxElement' e -> Just e
+          SaxError' Nothing -> Nothing
+          SaxError' (Just s) -> error s
+    
+
+printElemStrip :: SaxElement -> Parsing ()
+printElemStrip e = do
+  st <- get
+  cfg <- ask
+  case e of
+    x@(SaxProcessingInstruction ("xml", _)) -> do savePostponedCharData LastElemXmlHeader
+                                                  lastElem' <- getLastElem
+                                                  print' $ showElement $ changeEncodingInProcessingInstruction x $ outputEncoding cfg
+                                                  setLastElem LastElemXmlHeader
+      where
+        changeEncodingInProcessingInstruction (SaxProcessingInstruction (target, value)) encodingName =
+          let (pre, match, post) = value =~ "[ \t]+encoding=\"[^\"]+\"" :: (String, String, String)
+          in SaxProcessingInstruction (target, pre ++ " encoding=\"" ++ encodingName ++ "\"" ++ post)
+  
+        
+    x@(SaxProcessingInstruction _) -> do savePostponedCharData LastElemProcessingInstruction
+                                         conditionalSkipIdentSimply
+                                         print' (showElement x) 
+                                         setLastElem LastElemProcessingInstruction
+      
+    x@(SaxComment s)        -> do savePostponedCharData LastElemComment
+                                  conditionalSkipIdentSimply
+                                  let isEmacsInstructions s = s =~ " -\\*- +.+:.+ -\\*- " :: Bool
+                                  lastElem' <- getLastElem
+                                  print' (showElement x)
+                                  setLastElem LastElemComment
+    
+    x@(SaxElementTag _ _)   -> do savePostponedCharData LastElemOpenTag
+                                  conditionalSkipIdentSimply
+                                  print' (showElement x)
+                                  setLastElem LastElemCloseTag
+                                  
+    x@(SaxElementOpen _ _)  -> do savePostponedCharData LastElemOpenTag
+                                  print' (showElement x)
+                                  conditionalIdentMore
+                                  setLastElem LastElemOpenTag
+                                  
+    x@(SaxElementClose _ )  -> do savePostponedCharData LastElemCloseTag
+                                  unskipIdent
+                                  print' $ showElement x
+                                  setLastElem LastElemCloseTag
+    
+    x@(SaxCharData s)       -> do
+      lastElem' <- getLastElem
+      case 1 of
+        _
+          | all isSpace s && lastElem' /= LastElemChars -> putPostponedCharData s
+          | otherwise -> do savePostponedCharData LastElemChars
+                            print' $ showElement x
+                            setLastElem LastElemChars
+        
+                                            
+    (SaxReference (RefChar c)) -> printElemStrip $ SaxCharData $ decodeRefChar c
+    
+    x@(SaxReference (RefEntity name)) -> do
+      case decodeRefEntity name of
+        Just s -> printElemStrip $ SaxCharData s
+        
+        Nothing -> do print' $ showElement x
+                      setLastElem LastElemChars
+      
+
+  where
+    conditionalIdentMore = do
+      lastElem' <- getLastElem
+      skippedIdent' <- getSkippedIdent
+      unless (lastElem' /= LastElemChars && skippedIdent' == SkippedNothing) skipIdent
+        
+    conditionalSkipIdentSimply = do
+      lastElem' <- getLastElem
+      when (lastElem' == LastElemChars) skipIdentSimply
+
+
   

@@ -8,6 +8,7 @@ import System.IO.Temp
 import System.Directory
 import System.FilePath
 import Control.Monad
+import Data.Maybe
 
 import FormatXml
 
@@ -22,6 +23,7 @@ data Flags = Flags
                output_encoding :: Maybe EncodingName,
                input_encoding :: Maybe EncodingName,
                spaces :: Maybe Int,
+               strip :: Bool,
                inFileNames :: [String]
              } deriving (Data, Typeable)
                                 
@@ -42,13 +44,16 @@ opts' = getProgName >>= \programName -> return $
                   def
                   &= help ("Use this number of spaces instead of tabs for identation (default is " ++ show defaultSpaceIdent ++ ")")
                   &= opt (show defaultSpaceIdent),
+                strip =
+                  def
+                  &= help "Strip all insignificant spaces instead of making XML human readable",
                 
                 inFileNames =
                   def &= args &= typ "XMLFILE1 [XMLFILE2 ...]"
               }
         &= program programName
         &= summary ("XML Beautifier version " ++ programVersion)
-        &= details ["Beautifies (makes human readable) xml file(s). If input data is/are common file(s) and no redirection of STDOUT is specified than input files will be changed inplace. If STDIN is not a terminal (e.g. because of redirection) than result will be printed to STDOUT.",
+        &= details ["Format xml file(s). If input data is/are common file(s) and no redirection of STDOUT is specified than input files will be changed inplace. If STDIN is not a terminal (e.g. because of redirection) than result will be printed to STDOUT.",
                     "usage: " ++ programName ++ " OPTIONS XMLFILE1 [XMLFILE2 ...]",
                     "       " ++ programName ++ " OPTIONS < somefile.xml > somefile.xml"]
 
@@ -60,6 +65,8 @@ checkOptions opts = do
   
   when (backup opts && null (inFileNames opts)) $
     error "--backup option makes sence only when data source is a plain file(s) listed in the command line, not STDIN."
+  when (strip opts && (isJust (spaces opts))) $
+    error "--strip and --spaces option are mutually exclusive."
   where
     showOption (x:[]) = '-' : [x]
     showOption x      = "--" ++ x
@@ -78,7 +85,7 @@ processOneSource opts inFileName = do
                                     else do x <- openFile inFileP ReadMode
                                             return (x, inFileP)
   
-  let parseDoc' outFileH = processFile inFileH inFileDecoratedName outFileH inputEncoding outputEncoding identString
+  let parseDoc' outFileH = processFile inFileH inFileDecoratedName outFileH inputEncoding outputEncoding getMode
   
   if inPlace
   then
@@ -94,11 +101,16 @@ processOneSource opts inFileName = do
   where
     inputEncoding = input_encoding opts
     outputEncoding = output_encoding opts
-                     
-    identString =
-      case spaces opts of
-        Just i -> replicate i ' '
-        _               -> "\t"
+
+                 
+    getMode =
+      if strip opts then ModeStrip else ModeBeautify identString
+      --ModeBeautify identString
+      where
+        identString =
+          case spaces opts of
+            Just i -> replicate i ' '
+            _               -> "\t"
 
 
 main :: IO ()
