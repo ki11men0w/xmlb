@@ -313,6 +313,23 @@ escapeCharacterData = concatMap $ \c ->
     '&' -> "&amp;"
     c   -> [c]
 
+escapeAttributeData = escapeAttributeData' . escapeCharacterData
+  where
+    escapeAttributeData' = concatMap $ \c ->
+      case c of
+        '"' -> "&quot;"
+        c   -> [c]
+
+decodeRefEntity :: EntityRef -> Maybe String
+decodeRefEntity "amp"   = Just "&"
+decodeRefEntity "quot"  = Just "\""
+decodeRefEntity "apos"  = Just "'"
+decodeRefEntity "lt"    = Just "<"
+decodeRefEntity "gt"    = Just ">"
+decodeRefEntity _       = Nothing
+
+decodeRefChar c = [chr c]
+
 formatCharData s = s --"<![CDATA[" ++ s ++ "]]>"
 
 showElement :: SaxElement -> String
@@ -320,11 +337,10 @@ showElement (SaxProcessingInstruction (target, value)) =  "<?" ++ target ++ " " 
 showElement (SaxElementOpen name attrs)                =  "<"  ++ name ++ showAttributes attrs ++ ">"
 showElement (SaxElementClose name)                     =  "</" ++ name ++ ">"
 showElement (SaxElementTag name attrs)                 =  "<"  ++ name ++ showAttributes attrs ++ "/>"
-showElement (SaxCharData s)                            =  formatCharData s
+showElement (SaxCharData s)                            =  formatCharData . escapeCharacterData $ s
 showElement (SaxComment a)                             =  "<!--" ++ a ++ "-->"
-showElement (SaxReference r)                           = case r of
-                                                           RefEntity name -> "&" ++ name ++ ";"
-                                                           RefChar   c    -> "&#" ++ show c ++ ";"
+showElement (SaxReference (RefEntity name))            =  "&" ++ name ++ ";"
+showElement (SaxReference (RefChar c))                 =  "&#" ++ show c ++ ";"
 showElement _                                          =  ""
 
 showAttributes :: [Attribute] -> String
@@ -346,16 +362,11 @@ showAttributes attrs =
           where
             showAttrValues :: [Either String Reference] -> String
             showAttrValues [] = []
-            showAttrValues (Left str : vs)  = concatMap (\c ->
-                                                          case c of
-                                                            '"' -> "&quot;"
-                                                            '&' -> "&amp;"
-                                                            _ -> [c]) str
-                                              ++ showAttrValues vs
+            showAttrValues (Left str : vs)  = escapeAttributeData str ++ showAttrValues vs
             showAttrValues (Right ref : vs) =
               case ref of
-                RefEntity name -> "&" ++ name ++ ";"
-                RefChar   c    -> "&#" ++ show c ++ ";"
+                RefEntity name -> fromMaybe ("&" ++ name ++ ";") $ escapeAttributeData `liftM` decodeRefEntity name
+                RefChar   c    -> escapeAttributeData . decodeRefChar $ c
               ++ showAttrValues vs
 
 
@@ -440,7 +451,7 @@ savePostponedCharData next = do
           | otherwise -> postponedCharData'
 
   unless (null toPrint) $ do
-    print' $ formatCharData $ escapeCharacterData toPrint
+    print' $ showElement $ SaxCharData toPrint
     setLastElem LastElemChars
     
   put $ st {postponedCharData = []}
@@ -513,13 +524,18 @@ printElem e = do
         _
           | all isSpace s && lastElem' /= LastElemChars -> putPostponedCharData s
           | otherwise -> do savePostponedCharData LastElemChars
-                            print' $ formatCharData $ escapeCharacterData s
+                            print' $ showElement x
                             setLastElem LastElemChars
         
                                             
-    x@(SaxReference _)      -> do print' $ showElement x
-                                  setLastElem LastElemChars
-    x                       -> print' $ showElement x
+    (SaxReference (RefChar c)) -> printElem $ SaxCharData $ decodeRefChar c
+    
+    x@(SaxReference (RefEntity name)) -> do
+      case decodeRefEntity name of
+        Just s -> printElem $ SaxCharData s
+        Nothing -> do print' $ showElement x
+                      setLastElem LastElemChars
+      
 
   where
     conditionalNewLine = do
