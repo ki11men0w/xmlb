@@ -12,7 +12,7 @@ import Data.Maybe
 
 import FormatXml
 
-programVersion = "2.1.0.0 (haskell)"
+programVersion = "2.2.0.0 (haskell)"
 
 defaultSpaceIdent = 3
 
@@ -33,7 +33,7 @@ opts' = getProgName >>= \programName -> return $
                    &= help "Backup original files",
                 output_encoding =
                   def
-                  &= help "Encoding for OUTPUT documents (default is encoding of input document)"
+                  &= help "Encoding for OUTPUT documents (default is encoding of an input document)"
                   &= explicit &= name "e" &= name "encoding" &= name "o"
                   &= typ  "ENC",
                 input_encoding =
