@@ -98,12 +98,12 @@ processFile inH inFileName outH inputEncoding outputEncoding mode = do
        hSetBinaryMode tmpH True
        hSetEncoding tmpH =<< mkTextEncoding' (fromMaybe inputEncodingName outputEncoding)
    
-       let c = ParseConfig {outputEncoding = getEncodingName4XmlHeader outputEncodingName,
-                            mode = mode}
-           s = ParseState {identLevel=0, elems=elms,
-                           lastElem = LastElemNothing, penultElem = LastElemNothing,
-                           postponedCharData = [], skippedIdent = SkippedNothing,
-                           result = ""}
+       let c = FormattingConfig {outputEncoding = getEncodingName4XmlHeader outputEncodingName,
+                                 mode = mode}
+           s = FormattingState {identLevel=0, elems=elms,
+                                lastElem = LastElemNothing, penultElem = LastElemNothing,
+                                postponedCharData = [], skippedIdent = SkippedNothing,
+                                result = ""}
            !x = case mode of 
              ModeStrip      -> printTreeStrip c s
              ModeBeautify _ -> printTreeBeauty c s
@@ -258,7 +258,7 @@ getEncodingName4XmlHeader en =
     where normalized = filter (`notElem` "_- ") (map toUpper en)
 
 
-type Parsing a = ReaderT ParseConfig (State ParseState) a
+type Formatting a = ReaderT FormattingConfig (State FormattingState) a
 
 
 -- | Последний обработанный элемент
@@ -266,22 +266,21 @@ data LastElem = LastElemNothing -- ^ Признак того что тип элемента неизвестен
               | LastElemXmlHeader | LastElemProcessingInstruction | LastElemOpenTag | LastElemCloseTag | LastElemChars | LastElemComment
               deriving (Eq)
 
-data ParseConfig = ParseConfig {
-                                 outputEncoding :: String,
-                                 mode :: FormatMode
-                               }
+data FormattingConfig = FormattingConfig { outputEncoding :: String,
+                                           mode :: FormatMode
+                                         }
 
 type SkippedCountType = Integer
 data SkippedIdent = SkippedNothing | SkippingJustEnded | SkippedCount SkippedCountType
                   deriving (Eq)
-data ParseState = ParseState { identLevel :: Int,
-                               elems :: [SaxElementWrapper],
-                               lastElem :: LastElem,
-                               penultElem :: LastElem,
-                               postponedCharData :: String,
-                               skippedIdent :: SkippedIdent,
-                               result :: String
-                             }
+data FormattingState = FormattingState { identLevel :: Int,
+                                         elems :: [SaxElementWrapper],
+                                         lastElem :: LastElem,
+                                         penultElem :: LastElem,
+                                         postponedCharData :: String,
+                                         skippedIdent :: SkippedIdent,
+                                         result :: String
+                                       }
 
 data SaxElementWrapper = SaxElement' SaxElement | SaxError' (Maybe String)
 
@@ -352,48 +351,48 @@ showAttributes attrs =
 
 
   
-print' :: String -> Parsing ()
+print' :: String -> Formatting ()
 print' s = do
   st <- get
   put $ st { result = result st ++ s }
 
 
-setLastElem :: LastElem -> Parsing ()
+setLastElem :: LastElem -> Formatting ()
 setLastElem le = do
   st <- get
   put $ st {lastElem = le, penultElem = lastElem st}
   
-getLastElem :: Parsing LastElem
+getLastElem :: Formatting LastElem
 getLastElem = do
   st <- get
   return $ lastElem st
 
 
-identMore :: Parsing ()
+identMore :: Formatting ()
 identMore = do
   x <- get
   put $ x { identLevel = identLevel x +1 }
 
-identLess :: Parsing ()
+identLess :: Formatting ()
 identLess = do
   x <- get
   when (identLevel x > 0) $ put $ x { identLevel = identLevel x -1 }
 
-skipIdent :: Parsing ()
+skipIdent :: Formatting ()
 skipIdent = do
   st <- get
   case skippedIdent st of
     SkippedCount cnt -> put $ st {skippedIdent = SkippedCount (cnt + 1)}
     _ -> put $ st {skippedIdent = SkippedCount 1}
   
-skipIdentSimply :: Parsing ()
+skipIdentSimply :: Formatting ()
 skipIdentSimply = do
   st <- get
   case skippedIdent st of
     SkippedNothing -> put $ st {skippedIdent = SkippingJustEnded}
     _ -> return ()
 
-unskipIdent :: Parsing ()
+unskipIdent :: Formatting ()
 unskipIdent = do
   st <- get
   case skippedIdent st of
@@ -405,19 +404,19 @@ unskipIdent = do
     SkippedCount cnt ->
       put $ st {skippedIdent = SkippedCount (cnt - 1)}
 
-getSkippedIdent :: Parsing SkippedIdent
+getSkippedIdent :: Formatting SkippedIdent
 getSkippedIdent = do
   st <- get
   return $ skippedIdent st
   
 
-putPostponedCharData :: String  -> Parsing ()
+putPostponedCharData :: String  -> Formatting ()
 putPostponedCharData e = do
   st <- get
   put $ st {postponedCharData = postponedCharData st ++ e}
 
 savePostponedCharData :: LastElem  -- ^ Следующий элемент
-                      -> Parsing ()
+                      -> Formatting ()
 savePostponedCharData next = do
   st <- get
   let prev = lastElem st
@@ -437,7 +436,7 @@ savePostponedCharData next = do
   put $ st {postponedCharData = []}
   
 
-printTreeBeauty  :: ParseConfig -> ParseState -> String
+printTreeBeauty  :: FormattingConfig -> FormattingState -> String
 printTreeBeauty cfg st =
   case elems st of
     [] -> case lastElem st of
@@ -463,7 +462,7 @@ printTreeBeauty cfg st =
           SaxError' (Just s) -> error s
     
 
-printElemBeauty :: SaxElement -> Parsing ()
+printElemBeauty :: SaxElement -> Formatting ()
 printElemBeauty e = do
   st <- get
   cfg <- ask
@@ -554,7 +553,7 @@ printElemBeauty e = do
       skippedIdent' <- getSkippedIdent
       if lastElem' /= LastElemChars && skippedIdent' == SkippedNothing then printIdent x else print' x
       where
-        printIdent :: String -> Parsing ()
+        printIdent :: String -> Formatting ()
         printIdent s = do cfg <- ask
                           st <- get
                           print' $ concat (replicate (identLevel st) ((identString . mode) cfg)) ++ s
@@ -575,7 +574,7 @@ printElemBeauty e = do
 
     
 
-printTreeStrip  :: ParseConfig -> ParseState -> String
+printTreeStrip  :: FormattingConfig -> FormattingState -> String
 printTreeStrip cfg st =
   case elems st of
     [] -> ""
@@ -596,7 +595,7 @@ printTreeStrip cfg st =
           SaxError' (Just s) -> error s
     
 
-printElemStrip :: SaxElement -> Parsing ()
+printElemStrip :: SaxElement -> Formatting ()
 printElemStrip e = do
   st <- get
   cfg <- ask
