@@ -24,6 +24,7 @@ data Flags = Flags
                input_encoding :: Maybe EncodingName,
                spaces :: Maybe Int,
                strip :: Bool,
+               legacy :: Bool,
                inFileNames :: [String]
              } deriving (Data, Typeable)
                                 
@@ -47,6 +48,10 @@ opts' = getProgName >>= \programName -> return $
                 strip =
                   def
                   &= help "Strip all insignificant spaces instead of making XML human readable",
+                legacy =
+                  def
+                  &= explicit &= name "legacy"
+                  &= help "Legacy mode",
                 
                 inFileNames =
                   def &= args &= typ "XMLFILE1 [XMLFILE2 ...]"
@@ -69,8 +74,14 @@ checkOptions opts = do
   
   when (backup opts && null (inFileNames opts)) $
     error "--backup option makes sence only when data source is a plain file(s) listed in the command line, not STDIN."
-  when (strip opts && (isJust (spaces opts))) $
-    error "--strip and --spaces option are mutually exclusive."
+  when (strip opts && (isJust . spaces) opts) $
+    error "--strip and --spaces options are mutually exclusive."
+  when (legacy opts && (isJust . spaces) opts) $
+    error "--legacy and --spaces options are mutually exclusive."
+  when (legacy opts && strip opts) $
+    error "--legacy and --strip options are mutually exclusive."
+  when (legacy opts && (isJust . input_encoding) opts) $
+    error "--legacy and --input-encoding options are mutually exclusive."
   where
     showOption (x:[]) = '-' : [x]
     showOption x      = "--" ++ x
@@ -108,10 +119,13 @@ processOneSource opts inFileName = do
 
                  
     getMode =
-      if strip opts then ModeStrip else ModeBeautify identString
-      --ModeBeautify identString
+      case 1 of
+        _
+         | legacy opts -> ModeLegacy
+         | strip opts  -> ModeStrip
+         | otherwise   -> ModeBeautify {identString = identString'}
       where
-        identString =
+        identString' =
           case spaces opts of
             Just i -> replicate i ' '
             _               -> "\t"
@@ -123,8 +137,20 @@ main = do
   stdout_isatty <- hIsTerminalDevice stdout
   let inPlace = stdin_isatty && stdout_isatty
   
-  opts <- cmdArgs =<< opts'
-  checkOptions opts
+  opts'' <- cmdArgs =<< opts'
+  checkOptions opts''
+  let opts = if legacy opts''
+             then opts'' { spaces = Nothing,
+                           input_encoding = Nothing,
+                           strip = False,
+                           output_encoding = if (isNothing . output_encoding) opts''
+                                             then Just "ISO-8859-1" -- в режиме совместимости
+                                                                    -- кодировкой по умолчанию для
+                                                                    -- выходного документа является
+                                                                    -- iso-8859-1
+                                             else output_encoding opts''
+                         }
+             else opts''
   let inFileSources = case (stdin_isatty, inFileNames opts) of
         (True, []) -> error "No input data.\nUse '--help' command line flag to see the usage case."
         (_, [])    -> ["-"]

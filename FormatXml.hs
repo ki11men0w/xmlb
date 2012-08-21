@@ -33,6 +33,8 @@ data FormatMode = ModeBeautify -- ^ Форматирование "ёлочкой"
                     identString :: EncodingName -- ^ Строка, которая будет использоваться для отступов.
                   } 
                 | ModeStrip -- ^ Удаление всех незначащих пробельных символов
+                | ModeLegacy -- ^ Режим совместимости со старой утилитой на питоне
+                deriving (Eq)
 
 processFile :: Handle   -- ^ Исходный файл с XML документом
             -> FilePath -- ^ Наименование источника с входным документом. Необходимо для передчи в
@@ -98,7 +100,9 @@ processFile inH inFileName outH inputEncoding outputEncoding mode = do
        hSetBinaryMode tmpH True
        hSetEncoding tmpH =<< mkTextEncoding' (fromMaybe inputEncodingName outputEncoding)
    
-       let c = FormattingConfig {outputEncoding = getEncodingName4XmlHeader outputEncodingName,
+       let c = FormattingConfig {outputEncoding = case mode of
+                                                    ModeLegacy -> outputEncodingName
+                                                    _          -> getEncodingName4XmlHeader outputEncodingName,
                                  mode = mode}
            s = FormattingState {identLevel=0, elems=elms,
                                 lastElem = LastElemNothing, penultElem = LastElemNothing,
@@ -107,6 +111,7 @@ processFile inH inFileName outH inputEncoding outputEncoding mode = do
            !x = case mode of 
              ModeStrip      -> printTreeStrip c s
              ModeBeautify _ -> printTreeBeauty c s
+             ModeLegacy     -> printTreeBeauty c s
          
        hPutStr tmpH x
        
@@ -448,12 +453,14 @@ printTreeBeauty cfg st =
   case elems st of
     [] -> 
       -- После последнего элемента добавляем перенос строки
-      case lastElem st of
+      let lastNewLine = case mode cfg of
+            ModeBeautify _ -> "\n"
+            ModeLegacy     -> ""
+      in case lastElem st of
         LastElemCloseTag -> lastNewLine
         LastElemComment  -> lastNewLine
         LastElemProcessingInstruction -> lastNewLine
         _                -> ""
-      where lastNewLine = "\n"
             
     e:ex -> case unwrapSaxElem e of
       Just e -> let st' = flip execState st{elems=ex, result = ""} $
@@ -475,20 +482,25 @@ printElemBeauty e = do
                                                     _                -> print' "\n"
                                                   
                                                   conditionalPrintIdent $ showElement $ changeEncodingInProcessingInstruction x $ outputEncoding cfg
+                                                  when (mode cfg == ModeLegacy) $ print' "\n"
                                                   setLastElem LastElemXmlHeader
       where
         changeEncodingInProcessingInstruction (SaxProcessingInstruction (target, value)) encodingName =
           let (pre, match, post) = value =~ "[ \t]+encoding=\"[^\"]+\"" :: (String, String, String)
-          in SaxProcessingInstruction (target, pre ++ " encoding=\"" ++ encodingName ++ "\"" ++ post)
+          in SaxProcessingInstruction (target, case mode cfg of
+                                          ModeLegacy -> "version=\"1.0\" encoding=\"" ++ encodingName ++ "\""
+                                          _ -> pre ++ " encoding=\"" ++ encodingName ++ "\"" ++ post)
   
         
-    x@(SaxProcessingInstruction _) -> do savePostponedCharData LastElemProcessingInstruction
+    x@(SaxProcessingInstruction _) ->  when (mode cfg /= ModeLegacy) $ do
+                                         savePostponedCharData LastElemProcessingInstruction
                                          conditionalSkipIdentSimply
                                          conditionalNewLine
                                          conditionalPrintIdent (showElement x) 
                                          setLastElem LastElemProcessingInstruction
       
-    x@(SaxComment s)        -> do savePostponedCharData LastElemComment
+    x@(SaxComment s)        ->  when (mode cfg /= ModeLegacy) $ do
+                                  savePostponedCharData LastElemComment
                                   conditionalSkipIdentSimply
                                   let isEmacsInstructions s = s =~ " -\\*- +.+:.+ -\\*- " :: Bool
                                   lastElem' <- getLastElem
@@ -557,7 +569,10 @@ printElemBeauty e = do
         printIdent :: String -> Formatting ()
         printIdent s = do cfg <- ask
                           st <- get
-                          print' $ concat (replicate (identLevel st) ((identString . mode) cfg)) ++ s
+                          let identString = case mode cfg of
+                                              ModeBeautify i -> i
+                                              ModeLegacy -> "\t"
+                          print' $ concat (replicate (identLevel st) identString) ++ s
 
     conditionalIdentMore = do
       lastElem' <- getLastElem
@@ -598,7 +613,7 @@ printElemStrip e = do
                                                   setLastElem LastElemXmlHeader
       where
         changeEncodingInProcessingInstruction (SaxProcessingInstruction (target, value)) encodingName =
-          let (pre, match, post) = value =~ "[ \t]+encoding=\"[^\"]+\"" :: (String, String, String)
+          let (pre, match, post) =  value =~ "[ \t]+encoding=\"[^\"]+\"" :: (String, String, String)
           in SaxProcessingInstruction (target, pre ++ " encoding=\"" ++ encodingName ++ "\"" ++ post)
   
         
