@@ -436,31 +436,32 @@ savePostponedCharData next = do
   put $ st {postponedCharData = []}
   
 
+unwrapSaxElem :: SaxElementWrapper -> Maybe SaxElement
+unwrapSaxElem we =
+  case we of
+    SaxElement' e -> Just e
+    SaxError' Nothing -> Nothing
+    SaxError' (Just s) -> error s
+
 printTreeBeauty  :: FormattingConfig -> FormattingState -> String
 printTreeBeauty cfg st =
   case elems st of
-    [] -> case lastElem st of
-                 LastElemCloseTag -> lastNewLine
-                 LastElemComment  -> lastNewLine
-                 LastElemProcessingInstruction -> lastNewLine
-                 _                -> ""
-                 where lastNewLine = "\n"
+    [] -> 
+      -- После последнего элемента добавляем перенос строки
+      case lastElem st of
+        LastElemCloseTag -> lastNewLine
+        LastElemComment  -> lastNewLine
+        LastElemProcessingInstruction -> lastNewLine
+        _                -> ""
+      where lastNewLine = "\n"
+            
     e:ex -> case unwrapSaxElem e of
       Just e -> let st' = flip execState st{elems=ex, result = ""} $
                           flip runReaderT cfg $
                           printElemBeauty e
                 in result st' ++ printTreeBeauty cfg st'
       _ -> printTreeBeauty cfg st{elems=ex}
-    
 
-    where
-      unwrapSaxElem :: SaxElementWrapper -> Maybe SaxElement
-      unwrapSaxElem we =
-        case we of
-          SaxElement' e -> Just e
-          SaxError' Nothing -> Nothing
-          SaxError' (Just s) -> error s
-    
 
 printElemBeauty :: SaxElement -> Formatting ()
 printElemBeauty e = do
@@ -584,15 +585,6 @@ printTreeStrip cfg st =
                           printElemStrip e
                 in result st' ++ printTreeStrip cfg st'
       _ -> printTreeStrip cfg st{elems=ex}
-    
-
-    where
-      unwrapSaxElem :: SaxElementWrapper -> Maybe SaxElement
-      unwrapSaxElem we =
-        case we of
-          SaxElement' e -> Just e
-          SaxError' Nothing -> Nothing
-          SaxError' (Just s) -> error s
     
 
 printElemStrip :: SaxElement -> Formatting ()
