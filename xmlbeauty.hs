@@ -14,7 +14,7 @@ import FormatXml
 
 programVersion = "2.2.0.0 (haskell)"
 
-defaultSpaceIdent = 3
+defaultSpaceIdent = 3 :: Int
 
 
 -- | Флаги коммандной строки
@@ -82,9 +82,6 @@ checkOptions opts = do
     error "--legacy and --strip options are mutually exclusive."
   when (legacy opts && (isJust . input_encoding) opts) $
     error "--legacy and --input-encoding options are mutually exclusive."
-  where
-    showOption (x:[]) = '-' : [x]
-    showOption x      = "--" ++ x
 
   
 
@@ -119,7 +116,7 @@ processOneSource opts inFileName = do
 
                  
     getMode =
-      case 1 of
+      case () of
         _
          | legacy opts -> ModeLegacy
          | strip opts  -> ModeStrip
@@ -128,14 +125,14 @@ processOneSource opts inFileName = do
         identString' =
           case spaces opts of
             Just i -> replicate i ' '
-            _               -> "\t"
+            _      -> "\t"
 
 
 main :: IO ()
 main = do
-  stdin_isatty  <- hIsTerminalDevice stdin
-  stdout_isatty <- hIsTerminalDevice stdout
-  let inPlace = stdin_isatty && stdout_isatty
+  -- stdin_isatty  <- hIsTerminalDevice stdin
+  -- stdout_isatty <- hIsTerminalDevice stdout
+  -- let inPlace = stdin_isatty && stdout_isatty
   
   opts'' <- cmdArgs =<< opts'
   checkOptions opts''
@@ -151,6 +148,8 @@ main = do
                                              else output_encoding opts''
                          }
              else opts''
+  
+  stdin_isatty <- hIsTerminalDevice stdin
   let inFileSources = case (stdin_isatty, inFileNames opts) of
         (True, []) -> error "No input data.\nUse '--help' command line flag to see the usage case."
         (_, [])    -> ["-"]

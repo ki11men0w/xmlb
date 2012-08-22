@@ -146,11 +146,10 @@ getXmlEncoding inH = do
                           if eof then return (NotMatch, s)
                           else do
                             test_str <- BS.hGet inH 1 >>= \c -> return $ s `BS.append` c
-                            let bt = bomTest test_str
                             case bomTest test_str of
                               x@NotMatch       -> return (x, test_str)
-                              x@(FullyMatch e) -> return (x, BS.empty)
-                              x@(SemiMatch _)  -> checkNextByte test_str
+                              x@(FullyMatch _) -> return (x, BS.empty)
+                              SemiMatch _      -> checkNextByte test_str
           
           where bomTest :: BS.ByteString -> BomTestResult
                 bomTest xml =
@@ -178,7 +177,7 @@ getXmlEncoding inH = do
                                checkBOM bocu1'BOM "BOCU-1",
                                checkBOM gb18030'BOM "GB18030"]
                      
-                      checkBOM bom enc = case 1 of
+                      checkBOM bom enc = case () of
                             _
                               | BS.isPrefixOf bom xml -> FullyMatch enc
                               | BS.isPrefixOf xml bom -> SemiMatch enc
@@ -189,7 +188,7 @@ getXmlEncoding inH = do
                               -- Для UTF-7 последний символ BOM может содержать
                               -- любой из четырех символов.
                               let xml' = BS.drop (BS.length utf7'BOMstart) xml
-                              in case 1 of
+                              in case () of
                                 _
                                   -- Проверим что что строка не кончилась на первой части BOM
                                   | BS.null xml'  -> SemiMatch "UTF-7"
@@ -197,8 +196,8 @@ getXmlEncoding inH = do
                                   | BS.elem (BS.head xml') (BS.pack [0x38, 0x39, 0x2B, 0x2F]) -> FullyMatch "UTF-7"
                                   | otherwise -> NotMatch
                             else NotMatch
-                      fully_matched = find (\x -> case x of; FullyMatch enc -> True; otherwithe -> False) tests
-                      semi_matched  = find (\x -> case x of; SemiMatch enc -> True; otherwithe -> False) tests
+                      fully_matched = find (\x -> case x of; FullyMatch _ -> True; _ -> False) tests
+                      semi_matched  = find (\x -> case x of; SemiMatch _ -> True; _ -> False) tests
                       
                   --in fromMaybe (fromMaybe NotMatch semi_matched) fully_matched
                   in flip fromMaybe fully_matched $ fromMaybe NotMatch semi_matched
@@ -207,7 +206,7 @@ getXmlEncoding inH = do
     xmlDeclTest already_read_str = do
       -- Считаем что по крайней мере до конца xml-заголовока идут только однобайтовые символы
       eof <- hIsEOF inH
-      case 1 of
+      case () of
         _
           | eof -> return (Nothing, already_read_str)
           | BS.length already_read_str > 1000 -> return (Nothing, already_read_str)
@@ -217,7 +216,7 @@ getXmlEncoding inH = do
                        case enc of
                          _:"":_     -> return (Nothing, new_str)
                          _:e:_      -> return (Just e, new_str)
-                         otherwithe -> xmlDeclTest new_str
+                         _          -> xmlDeclTest new_str
 
             where howMatchRead = if already_read_str_length < min_length
                                  then min_length - already_read_str_length
@@ -324,7 +323,7 @@ decodeRefEntity _       = Nothing
 
 decodeRefChar c = [chr c]
 
-formatCharData s = s --"<![CDATA[" ++ s ++ "]]>"
+formatCharData s = s -- "<![CDATA[" ++ s ++ "]]>"
 
 showElement :: SaxElement -> String
 showElement (SaxProcessingInstruction (target, value)) =  "<?" ++ target ++ " " ++ value ++ "?>"
@@ -436,7 +435,7 @@ savePostponedCharData next = do
   let prev = lastElem st
       postponedCharData' = postponedCharData st
       skippedIdent' = skippedIdent st
-      toPrint = case 1 of
+      toPrint = case () of
         _
           | prev == LastElemOpenTag && next == LastElemCloseTag -> postponedCharData'
           | skippedIdent' /= SkippedNothing -> postponedCharData'
@@ -479,7 +478,6 @@ printTreeBeauty cfg st =
 
 printElemBeauty :: SaxElement -> Formatting ()
 printElemBeauty e = do
-  st <- get
   cfg <- ask
   case e of
     x@(SaxProcessingInstruction ("xml", _)) -> do savePostponedCharData LastElemXmlHeader
@@ -493,7 +491,7 @@ printElemBeauty e = do
                                                   setLastElem LastElemXmlHeader
       where
         changeEncodingInProcessingInstruction (SaxProcessingInstruction (target, value)) encodingName =
-          let (pre, match, post) = value =~ "[ \t]+encoding=\"[^\"]+\"" :: (String, String, String)
+          let (pre, _, post) = value =~ "[ \t]+encoding=\"[^\"]+\"" :: (String, String, String)
           in SaxProcessingInstruction (target, case mode cfg of
                                           ModeLegacy -> "version=\"1.0\" encoding=\"" ++ encodingName ++ "\""
                                           _ -> pre ++ " encoding=\"" ++ encodingName ++ "\"" ++ post)
@@ -545,7 +543,7 @@ printElemBeauty e = do
     
     x@(SaxCharData s)       -> do
       lastElem' <- getLastElem
-      case 1 of
+      case () of
         _
           | all isSpace s && lastElem' /= LastElemChars -> putPostponedCharData s
           | otherwise -> do savePostponedCharData LastElemChars
@@ -587,7 +585,6 @@ printElemBeauty e = do
       if lastElem' /= LastElemChars && skippedIdent' == SkippedNothing then identMore else skipIdent
         
     conditionalIdentLess = do
-      lastElem' <- getLastElem
       skippedIdent' <- getSkippedIdent
       when (skippedIdent' `elem` [SkippedNothing, SkippingJustEnded]) identLess
                             
@@ -609,16 +606,14 @@ printTreeStrip cfg st =
 
 printElemStrip :: SaxElement -> Formatting ()
 printElemStrip e = do
-  st <- get
   cfg <- ask
   case e of
     x@(SaxProcessingInstruction ("xml", _)) -> do savePostponedCharData LastElemXmlHeader
-                                                  lastElem' <- getLastElem
                                                   print' $ showElement $ changeEncodingInProcessingInstruction x $ outputEncoding cfg
                                                   setLastElem LastElemXmlHeader
       where
         changeEncodingInProcessingInstruction (SaxProcessingInstruction (target, value)) encodingName =
-          let (pre, match, post) =  value =~ "[ \t]+encoding=\"[^\"]+\"" :: (String, String, String)
+          let (pre, _, post) =  value =~ "[ \t]+encoding=\"[^\"]+\"" :: (String, String, String)
           in SaxProcessingInstruction (target, pre ++ " encoding=\"" ++ encodingName ++ "\"" ++ post)
   
         
@@ -627,10 +622,8 @@ printElemStrip e = do
                                          print' (showElement x) 
                                          setLastElem LastElemProcessingInstruction
       
-    x@(SaxComment s)        -> do savePostponedCharData LastElemComment
+    x@(SaxComment _)        -> do savePostponedCharData LastElemComment
                                   conditionalSkipIdentSimply
-                                  let isEmacsInstructions s = s =~ " -\\*- +.+:.+ -\\*- " :: Bool
-                                  lastElem' <- getLastElem
                                   print' (showElement x)
                                   setLastElem LastElemComment
     
@@ -651,7 +644,7 @@ printElemStrip e = do
     
     x@(SaxCharData s)       -> do
       lastElem' <- getLastElem
-      case 1 of
+      case () of
         _
           | all isSpace s && lastElem' /= LastElemChars -> putPostponedCharData s
           | otherwise -> do savePostponedCharData LastElemChars
