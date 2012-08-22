@@ -28,23 +28,23 @@ import Control.Parallel.Strategies (rdeepseq, withStrategy)
 
 type EncodingName = String
 
-data FormatMode = ModeBeautify -- ^ Форматирование "ёлочкой"
+data FormatMode = ModeBeautify -- ^ Р¤РѕСЂРјР°С‚РёСЂРѕРІР°РЅРёРµ "С‘Р»РѕС‡РєРѕР№"
                   {
-                    identString :: EncodingName -- ^ Строка, которая будет использоваться для отступов.
+                    identString :: EncodingName -- ^ РЎС‚СЂРѕРєР°, РєРѕС‚РѕСЂР°СЏ Р±СѓРґРµС‚ РёСЃРїРѕР»СЊР·РѕРІР°С‚СЊСЃСЏ РґР»СЏ РѕС‚СЃС‚СѓРїРѕРІ.
                   } 
-                | ModeStrip -- ^ Удаление всех незначащих пробельных символов
-                | ModeLegacy -- ^ Режим совместимости со старой утилитой на питоне
+                | ModeStrip -- ^ РЈРґР°Р»РµРЅРёРµ РІСЃРµС… РЅРµР·РЅР°С‡Р°С‰РёС… РїСЂРѕР±РµР»СЊРЅС‹С… СЃРёРјРІРѕР»РѕРІ
+                | ModeLegacy -- ^ Р РµР¶РёРј СЃРѕРІРјРµСЃС‚РёРјРѕСЃС‚Рё СЃРѕ СЃС‚Р°СЂРѕР№ СѓС‚РёР»РёС‚РѕР№ РЅР° РїРёС‚РѕРЅРµ
                 deriving (Eq)
 
-processFile :: Handle   -- ^ Исходный файл с XML документом
-            -> FilePath -- ^ Наименование источника с входным документом. Необходимо для передчи в
-                        -- SAX-парсер. Обычно - это имя файла содержащего исходный XML.
-            -> Handle   -- ^ Файл в который будет помещен результат преобразования.
-            -> Maybe EncodingName -- ^ Здесь можно указать кодировку входного файла. Если Nothing,
-                                  -- то кодировка будет определена на основании BOM и заголовка XML.
-            -> Maybe EncodingName -- ^ Здесь можно указать кодировку выходного файла. Если Nothing,
-                                  -- то будет использована кодировка входного файла.
-            -> FormatMode -- ^ Режим преобразования
+processFile :: Handle   -- ^ РСЃС…РѕРґРЅС‹Р№ С„Р°Р№Р» СЃ XML РґРѕРєСѓРјРµРЅС‚РѕРј
+            -> FilePath -- ^ РќР°РёРјРµРЅРѕРІР°РЅРёРµ РёСЃС‚РѕС‡РЅРёРєР° СЃ РІС…РѕРґРЅС‹Рј РґРѕРєСѓРјРµРЅС‚РѕРј. РќРµРѕР±С…РѕРґРёРјРѕ РґР»СЏ РїРµСЂРµРґС‡Рё РІ
+                        -- SAX-РїР°СЂСЃРµСЂ. РћР±С‹С‡РЅРѕ - СЌС‚Рѕ РёРјСЏ С„Р°Р№Р»Р° СЃРѕРґРµСЂР¶Р°С‰РµРіРѕ РёСЃС…РѕРґРЅС‹Р№ XML.
+            -> Handle   -- ^ Р¤Р°Р№Р» РІ РєРѕС‚РѕСЂС‹Р№ Р±СѓРґРµС‚ РїРѕРјРµС‰РµРЅ СЂРµР·СѓР»СЊС‚Р°С‚ РїСЂРµРѕР±СЂР°Р·РѕРІР°РЅРёСЏ.
+            -> Maybe EncodingName -- ^ Р—РґРµСЃСЊ РјРѕР¶РЅРѕ СѓРєР°Р·Р°С‚СЊ РєРѕРґРёСЂРѕРІРєСѓ РІС…РѕРґРЅРѕРіРѕ С„Р°Р№Р»Р°. Р•СЃР»Рё Nothing,
+                                  -- С‚Рѕ РєРѕРґРёСЂРѕРІРєР° Р±СѓРґРµС‚ РѕРїСЂРµРґРµР»РµРЅР° РЅР° РѕСЃРЅРѕРІР°РЅРёРё BOM Рё Р·Р°РіРѕР»РѕРІРєР° XML.
+            -> Maybe EncodingName -- ^ Р—РґРµСЃСЊ РјРѕР¶РЅРѕ СѓРєР°Р·Р°С‚СЊ РєРѕРґРёСЂРѕРІРєСѓ РІС‹С…РѕРґРЅРѕРіРѕ С„Р°Р№Р»Р°. Р•СЃР»Рё Nothing,
+                                  -- С‚Рѕ Р±СѓРґРµС‚ РёСЃРїРѕР»СЊР·РѕРІР°РЅР° РєРѕРґРёСЂРѕРІРєР° РІС…РѕРґРЅРѕРіРѕ С„Р°Р№Р»Р°.
+            -> FormatMode -- ^ Р РµР¶РёРј РїСЂРµРѕР±СЂР°Р·РѕРІР°РЅРёСЏ
             -> IO ()
 processFile inH inFileName outH inputEncoding outputEncoding mode = do
   
@@ -70,8 +70,8 @@ processFile inH inFileName outH inputEncoding outputEncoding mode = do
                          BS.hPutStr tmpH inpt'
                          hSeek tmpH AbsoluteSeek 0
                          hSetEncoding tmpH inputEncoding
-                         -- Все эти strict* для того что-бы можно было закрыть
-                         -- временный файл сразуже
+                         -- Р’СЃРµ СЌС‚Рё strict* РґР»СЏ С‚РѕРіРѕ С‡С‚Рѕ-Р±С‹ РјРѕР¶РЅРѕ Р±С‹Р»Рѕ Р·Р°РєСЂС‹С‚СЊ
+                         -- РІСЂРµРјРµРЅРЅС‹Р№ С„Р°Р№Р» СЃСЂР°Р·СѓР¶Рµ
                          !x <- withStrategy rdeepseq `liftM` hGetContents tmpH
                          return x
                     
@@ -80,13 +80,13 @@ processFile inH inFileName outH inputEncoding outputEncoding mode = do
           return (inpt' ++ inpt'', inputEncodingName)
         
         Nothing -> do
-          -- Если кодировку определить не смогли, то считаем, что
-          -- входной поток данных в UTF-8. Нам необходимо
-          -- раскодировать из UTF-8 не только еще не прочитанную часть
-          -- файла, но и небольшую зачитанную заголовачную
-          -- часть. Т.к. механизм чтения (Prelude.hGetContents и
-          -- hSetEncoding) не позволяет это сделать, то используем
-          -- здесь функционал Data.Text.Encoding.
+          -- Р•СЃР»Рё РєРѕРґРёСЂРѕРІРєСѓ РѕРїСЂРµРґРµР»РёС‚СЊ РЅРµ СЃРјРѕРіР»Рё, С‚Рѕ СЃС‡РёС‚Р°РµРј, С‡С‚Рѕ
+          -- РІС…РѕРґРЅРѕР№ РїРѕС‚РѕРє РґР°РЅРЅС‹С… РІ UTF-8. РќР°Рј РЅРµРѕР±С…РѕРґРёРјРѕ
+          -- СЂР°СЃРєРѕРґРёСЂРѕРІР°С‚СЊ РёР· UTF-8 РЅРµ С‚РѕР»СЊРєРѕ РµС‰Рµ РЅРµ РїСЂРѕС‡РёС‚Р°РЅРЅСѓСЋ С‡Р°СЃС‚СЊ
+          -- С„Р°Р№Р»Р°, РЅРѕ Рё РЅРµР±РѕР»СЊС€СѓСЋ Р·Р°С‡РёС‚Р°РЅРЅСѓСЋ Р·Р°РіРѕР»РѕРІР°С‡РЅСѓСЋ
+          -- С‡Р°СЃС‚СЊ. Рў.Рє. РјРµС…Р°РЅРёР·Рј С‡С‚РµРЅРёСЏ (Prelude.hGetContents Рё
+          -- hSetEncoding) РЅРµ РїРѕР·РІРѕР»СЏРµС‚ СЌС‚Рѕ СЃРґРµР»Р°С‚СЊ, С‚Рѕ РёСЃРїРѕР»СЊР·СѓРµРј
+          -- Р·РґРµСЃСЊ С„СѓРЅРєС†РёРѕРЅР°Р» Data.Text.Encoding.
           inpt'' <- BS.hGetContents inH
           return (TXT.unpack $ decodeUtf8 $ BS.append inpt' inpt'', "UTF-8")
   
@@ -95,8 +95,8 @@ processFile inH inFileName outH inputEncoding outputEncoding mode = do
   
   withSystemTempFile "xmlbeauty.xml" $ \_ tmpH ->
     do let outputEncodingName = fromMaybe inputEncodingName outputEncoding
-       -- Если выходная кодировка не указана явно, то подразумевается что выходная кодировка должна
-       -- совпадать с входной.
+       -- Р•СЃР»Рё РІС‹С…РѕРґРЅР°СЏ РєРѕРґРёСЂРѕРІРєР° РЅРµ СѓРєР°Р·Р°РЅР° СЏРІРЅРѕ, С‚Рѕ РїРѕРґСЂР°Р·СѓРјРµРІР°РµС‚СЃСЏ С‡С‚Рѕ РІС‹С…РѕРґРЅР°СЏ РєРѕРґРёСЂРѕРІРєР° РґРѕР»Р¶РЅР°
+       -- СЃРѕРІРїР°РґР°С‚СЊ СЃ РІС…РѕРґРЅРѕР№.
        hSetBinaryMode tmpH True
        hSetEncoding tmpH =<< mkTextEncoding' (fromMaybe inputEncodingName outputEncoding)
    
@@ -124,10 +124,10 @@ processFile inH inFileName outH inputEncoding outputEncoding mode = do
 
 data BomTestResult = FullyMatch EncodingName | SemiMatch EncodingName | NotMatch
 
--- | Определяет кодировку XML файла по BOM или из псевдо атрибута encoding заголовка XML
-getXmlEncoding :: Handle                  -- ^ Handle файла содержащего XML
-               -> IO (Maybe EncodingName, -- ^ если кодировку удалось определить, то возвращает ее как 'Just x'
-                      BS.ByteString)      -- ^ байты, которые были зачитаны из файла Handle для определения кодировки
+-- | РћРїСЂРµРґРµР»СЏРµС‚ РєРѕРґРёСЂРѕРІРєСѓ XML С„Р°Р№Р»Р° РїРѕ BOM РёР»Рё РёР· РїСЃРµРІРґРѕ Р°С‚СЂРёР±СѓС‚Р° encoding Р·Р°РіРѕР»РѕРІРєР° XML
+getXmlEncoding :: Handle                  -- ^ Handle С„Р°Р№Р»Р° СЃРѕРґРµСЂР¶Р°С‰РµРіРѕ XML
+               -> IO (Maybe EncodingName, -- ^ РµСЃР»Рё РєРѕРґРёСЂРѕРІРєСѓ СѓРґР°Р»РѕСЃСЊ РѕРїСЂРµРґРµР»РёС‚СЊ, С‚Рѕ РІРѕР·РІСЂР°С‰Р°РµС‚ РµРµ РєР°Рє 'Just x'
+                      BS.ByteString)      -- ^ Р±Р°Р№С‚С‹, РєРѕС‚РѕСЂС‹Рµ Р±С‹Р»Рё Р·Р°С‡РёС‚Р°РЅС‹ РёР· С„Р°Р№Р»Р° Handle РґР»СЏ РѕРїСЂРµРґРµР»РµРЅРёСЏ РєРѕРґРёСЂРѕРІРєРё
 getXmlEncoding inH = do
   t <- bomTest'
   case t of
@@ -186,14 +186,14 @@ getXmlEncoding inH = do
                           
                       check_utf7'BOM =
                             if xml `BS.isPrefixOf` utf7'BOMstart then
-                              -- Для UTF-7 последний символ BOM может содержать
-                              -- любой из четырех символов.
+                              -- Р”Р»СЏ UTF-7 РїРѕСЃР»РµРґРЅРёР№ СЃРёРјРІРѕР» BOM РјРѕР¶РµС‚ СЃРѕРґРµСЂР¶Р°С‚СЊ
+                              -- Р»СЋР±РѕР№ РёР· С‡РµС‚С‹СЂРµС… СЃРёРјРІРѕР»РѕРІ.
                               let xml' = BS.drop (BS.length utf7'BOMstart) xml
                               in case 1 of
                                 _
-                                  -- Проверим что что строка не кончилась на первой части BOM
+                                  -- РџСЂРѕРІРµСЂРёРј С‡С‚Рѕ С‡С‚Рѕ СЃС‚СЂРѕРєР° РЅРµ РєРѕРЅС‡РёР»Р°СЃСЊ РЅР° РїРµСЂРІРѕР№ С‡Р°СЃС‚Рё BOM
                                   | BS.null xml'  -> SemiMatch "UTF-7"
-                                  -- Проверим входит ли наш символ в группу допустимых концов BOM
+                                  -- РџСЂРѕРІРµСЂРёРј РІС…РѕРґРёС‚ Р»Рё РЅР°С€ СЃРёРјРІРѕР» РІ РіСЂСѓРїРїСѓ РґРѕРїСѓСЃС‚РёРјС‹С… РєРѕРЅС†РѕРІ BOM
                                   | BS.elem (BS.head xml') (BS.pack [0x38, 0x39, 0x2B, 0x2F]) -> FullyMatch "UTF-7"
                                   | otherwise -> NotMatch
                             else NotMatch
@@ -205,7 +205,7 @@ getXmlEncoding inH = do
 
     xmlDeclTest :: BS.ByteString -> IO (Maybe EncodingName, BS.ByteString)
     xmlDeclTest already_read_str = do
-      -- Считаем что по крайней мере до конца xml-заголовока идут только однобайтовые символы
+      -- РЎС‡РёС‚Р°РµРј С‡С‚Рѕ РїРѕ РєСЂР°Р№РЅРµР№ РјРµСЂРµ РґРѕ РєРѕРЅС†Р° xml-Р·Р°РіРѕР»РѕРІРѕРєР° РёРґСѓС‚ С‚РѕР»СЊРєРѕ РѕРґРЅРѕР±Р°Р№С‚РѕРІС‹Рµ СЃРёРјРІРѕР»С‹
       eof <- hIsEOF inH
       case 1 of
         _
@@ -229,8 +229,8 @@ getXmlEncoding inH = do
 
 mkTextEncoding' :: EncodingName -> IO TextEncoding
 mkTextEncoding' en =
-  -- Если кодировка совпадает с одной из обязательно реализованных в стандартной
-  -- библиотеке то выбираем ее явно, если нет, то используем mkTextEncoding
+  -- Р•СЃР»Рё РєРѕРґРёСЂРѕРІРєР° СЃРѕРІРїР°РґР°РµС‚ СЃ РѕРґРЅРѕР№ РёР· РѕР±СЏР·Р°С‚РµР»СЊРЅРѕ СЂРµР°Р»РёР·РѕРІР°РЅРЅС‹С… РІ СЃС‚Р°РЅРґР°СЂС‚РЅРѕР№
+  -- Р±РёР±Р»РёРѕС‚РµРєРµ С‚Рѕ РІС‹Р±РёСЂР°РµРј РµРµ СЏРІРЅРѕ, РµСЃР»Рё РЅРµС‚, С‚Рѕ РёСЃРїРѕР»СЊР·СѓРµРј mkTextEncoding
   case normalized of
     "ASCII"    -> return latin1
     "ISO88591" -> return latin1
@@ -247,7 +247,7 @@ mkTextEncoding' en =
     where normalized = filter (`notElem` "_- ") (map toUpper en)
 
 
--- | Возвращает имя кодировки для вставки в атрибут encoding заголовка XML
+-- | Р’РѕР·РІСЂР°С‰Р°РµС‚ РёРјСЏ РєРѕРґРёСЂРѕРІРєРё РґР»СЏ РІСЃС‚Р°РІРєРё РІ Р°С‚СЂРёР±СѓС‚ encoding Р·Р°РіРѕР»РѕРІРєР° XML
 getEncodingName4XmlHeader :: EncodingName -> String
 getEncodingName4XmlHeader en =
   case normalized of
@@ -266,8 +266,8 @@ getEncodingName4XmlHeader en =
 type Formatting a = ReaderT FormattingConfig (State FormattingState) a
 
 
--- | Последний обработанный элемент
-data LastElem = LastElemNothing -- ^ Признак того что тип элемента неизвестен
+-- | РџРѕСЃР»РµРґРЅРёР№ РѕР±СЂР°Р±РѕС‚Р°РЅРЅС‹Р№ СЌР»РµРјРµРЅС‚
+data LastElem = LastElemNothing -- ^ РџСЂРёР·РЅР°Рє С‚РѕРіРѕ С‡С‚Рѕ С‚РёРї СЌР»РµРјРµРЅС‚Р° РЅРµРёР·РІРµСЃС‚РµРЅ
               | LastElemXmlHeader | LastElemProcessingInstruction | LastElemOpenTag | LastElemCloseTag | LastElemChars | LastElemComment
               deriving (Eq)
 
@@ -420,7 +420,7 @@ putPostponedCharData e = do
   st <- get
   put $ st {postponedCharData = postponedCharData st ++ e}
 
-savePostponedCharData :: LastElem  -- ^ Следующий элемент
+savePostponedCharData :: LastElem  -- ^ РЎР»РµРґСѓСЋС‰РёР№ СЌР»РµРјРµРЅС‚
                       -> Formatting ()
 savePostponedCharData next = do
   st <- get
@@ -452,7 +452,7 @@ printTreeBeauty  :: FormattingConfig -> FormattingState -> String
 printTreeBeauty cfg st =
   case elems st of
     [] -> 
-      -- После последнего элемента добавляем перенос строки
+      -- РџРѕСЃР»Рµ РїРѕСЃР»РµРґРЅРµРіРѕ СЌР»РµРјРµРЅС‚Р° РґРѕР±Р°РІР»СЏРµРј РїРµСЂРµРЅРѕСЃ СЃС‚СЂРѕРєРё
       let lastNewLine = case mode cfg of
             ModeBeautify _ -> "\n"
             ModeLegacy     -> ""
