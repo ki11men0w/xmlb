@@ -287,6 +287,15 @@ data FormattingState = FormattingState { identLevel :: Int,
                                          result :: String
                                        }
 
+runFormatting :: FormattingConfig -> FormattingState -> Formatting a -> FormattingState
+runFormatting cfg st act =
+  flip execState st $
+  flip runReaderT cfg
+  act
+
+
+
+
 data SaxElementWrapper = SaxElement' SaxElement | SaxError' (Maybe String)
 
 
@@ -463,9 +472,7 @@ printTreeBeauty cfg st =
         _                -> ""
             
     e:ex -> case unwrapSaxElem e of
-      Just e -> let st' = flip execState st{elems=ex, result = ""} $
-                          flip runReaderT cfg $
-                          printElemBeauty e
+      Just e -> let st' = runFormatting cfg st{elems=ex, result = ""} $ printElemBeauty e
                 in result st' ++ printTreeBeauty cfg st'
       _ -> printTreeBeauty cfg st{elems=ex}
 
@@ -595,9 +602,7 @@ printTreeStrip cfg st =
   case elems st of
     [] -> ""
     e:ex -> case unwrapSaxElem e of
-      Just e -> let st' = flip execState st{elems=ex, result = ""} $
-                          flip runReaderT cfg $
-                          printElemStrip e
+      Just e -> let st' = runFormatting cfg st{elems=ex, result = ""} $ printElemStrip e
                 in result st' ++ printTreeStrip cfg st'
       _ -> printTreeStrip cfg st{elems=ex}
     
