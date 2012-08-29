@@ -234,6 +234,7 @@ mkTextEncoding' en =
   case normalized of
     "ASCII"    -> return latin1
     "ISO88591" -> return latin1
+    "LATIN1"   -> return latin1
     "UTF8"     -> return utf8
     "UTF16"    -> return utf16
     "UTF16LE"  -> return utf16le
@@ -258,6 +259,7 @@ getEncodingName4XmlHeader en =
     "CP1251"  -> "WINDOWS-1251"
     "CP866"   -> "WINDOWS-866"
     "ASCII"   -> "ISO-8859-1"
+    "LATIN1"  -> "ISO-8859-1"
     _         -> en
     
     where normalized = filter (`notElem` "_- ") (map toUpper en)
