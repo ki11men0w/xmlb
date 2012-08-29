@@ -1,3 +1,4 @@
+{-  -*- coding:utf-8 -*-  -}
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 module FormatXml (
