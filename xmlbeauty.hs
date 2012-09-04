@@ -27,6 +27,7 @@ data Flags = Flags
                spaces :: Maybe Int,
                strip :: Bool,
                legacy :: Bool,
+               quiet :: Bool,
                inFileNames :: [FilePath]
              } deriving (Data, Typeable)
                                 
@@ -54,6 +55,9 @@ opts' = getProgName >>= \programName -> return $
                   def
                   &= explicit &= name "legacy"
                   &= help "Legacy mode",
+                quiet =
+                  def
+                  &= help "Be quiet. Do not print warnings",
                 
                 inFileNames =
                   def &= args &= typ "XMLFILE1 [XMLFILE2 ...]"
@@ -161,5 +165,5 @@ main = do
         _          -> globed_inFileNames
 
   case inFileSources of
-    [] -> hPutStrLn stderr "Specified file pattern does not match any file. No one file was processed."
+    [] -> unless (quiet opts) $ hPutStrLn stderr "Specified file pattern does not match any file. No one file was processed."
     _  -> mapM_ (processOneSource opts) inFileSources
