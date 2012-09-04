@@ -10,6 +10,7 @@ import System.Directory
 import System.FilePath
 import Control.Monad
 import Data.Maybe
+import System.FilePath.Glob
 
 import FormatXml
 
@@ -150,11 +151,15 @@ main = do
                          }
              else opts''
   
+  
+  globed_inFileNames <- liftM concat (mapM glob $ inFileNames opts)
+  
   stdin_isatty <- hIsTerminalDevice stdin
   let inFileSources = case (stdin_isatty, inFileNames opts) of
         (True, []) -> error "No input data.\nUse '--help' command line flag to see the usage case."
         (_, [])    -> ["-"]
-        (_, x)     -> x
+        _          -> globed_inFileNames
 
-  mapM_ (processOneSource opts) inFileSources
-      
+  case inFileSources of
+    [] -> hPutStrLn stderr "Specified file pattern does not match any file. No one file was processed."
+    _  -> mapM_ (processOneSource opts) inFileSources
