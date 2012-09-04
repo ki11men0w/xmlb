@@ -26,7 +26,7 @@ data Flags = Flags
                spaces :: Maybe Int,
                strip :: Bool,
                legacy :: Bool,
-               inFileNames :: [String]
+               inFileNames :: [FilePath]
              } deriving (Data, Typeable)
                                 
 opts' = getProgName >>= \programName -> return $
