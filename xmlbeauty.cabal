@@ -13,12 +13,13 @@ description: The main porpose of this utility is to make XML documents human
              of removing insignificant white spaces from XML documents.
 category: XML
 author: Maksim Golubev
+tested-with: GHC ==7.0.4
 tested-with: GHC ==7.4.1
 data-dir: ""
  
 executable xmlb
-    build-depends: HaXml >=1.23.3, QuickCheck >=2.0, base >=4.5,
-                   cmdargs >=0.10, temporary >=1.1.2.3, Glob >=0.7.1,
+    build-depends: HaXml >=1.22.5, QuickCheck >=2.0, base >=4.3.1.0,
+                   cmdargs >=0.9.3, temporary >=1.1.2.3, Glob >=0.7.1,
                    parallel, text, bytestring, regex-posix, mtl, filepath,
                    directory
     main-is: xmlb.hs
