@@ -1,0 +1,27 @@
+name: xmlb
+version: 0.0.1
+cabal-version: >=1.2
+build-type: Simple
+license: PublicDomain
+license-file: ""
+maintainer: Maksim Golubev
+stability: beta
+bug-reports: maksim.golubev72@gmail.com
+synopsis: XML beautifier. The utility for formatting XML
+description: The main porpose of this utility is to make XML documents human
+             readable. You can also use it to perform the inverse problem
+             of removing insignificant white spaces from XML documents.
+category: XML
+author: Maksim Golubev
+tested-with: GHC ==7.4.1
+data-dir: ""
+ 
+executable xmlb
+    build-depends: HaXml >=1.23.3, QuickCheck >=2.0, base >=4.5,
+                   cmdargs >=0.10, temporary >=1.1.2.3, Glob >=0.7.1,
+                   parallel, text, bytestring, regex-posix, mtl, filepath,
+                   directory
+    main-is: xmlb.hs
+    buildable: True
+    hs-source-dirs: src
+    ghc-options: -O3
