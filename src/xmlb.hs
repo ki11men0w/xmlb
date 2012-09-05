@@ -106,14 +106,14 @@ processOneSource opts inFileName = do
   let parseDoc' outFileH = processFile inFileH inFileDecoratedName outFileH inputEncoding outputEncoding getMode
   
   if inPlace
-  then
+   then
     withSystemTempFile "xmlbeauty.xml" $ \outFileP outFileH -> do
       parseDoc' outFileH
       hClose inFileH
       hClose outFileH
       when (backup opts) (renameFile inFileP $ addExtension inFileP "bak")
       copyFile outFileP inFileP
-  else
+   else
     parseDoc' stdout
     
   where
