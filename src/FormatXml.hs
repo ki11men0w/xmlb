@@ -101,7 +101,7 @@ processFile inH inFileName outH inputEncoding outputEncoding mode = do
        -- Если выходная кодировка не указана явно, то подразумевается что выходная кодировка должна
        -- совпадать с входной.
        hSetBinaryMode tmpH True
-       hSetEncoding tmpH =<< mkTextEncoding' (fromMaybe inputEncodingName outputEncoding)
+       hSetEncoding tmpH =<< mkTextEncoding' outputEncodingName
    
        let c = FormattingConfig {outputEncoding = case mode of
                                                     ModeLegacy -> outputEncodingName
