@@ -29,6 +29,8 @@ import Control.Parallel.Strategies (rdeepseq, withStrategy)
 
 type EncodingName = String
 
+eol = "\r\n"
+
 data FormatMode = ModeBeautify -- ^ Форматирование "ёлочкой"
                   {
                     identString :: EncodingName -- ^ Строка, которая будет использоваться для отступов.
@@ -465,7 +467,7 @@ printTreeBeauty cfg st =
     [] -> 
       -- После последнего элемента добавляем перенос строки
       let lastNewLine = case mode cfg of
-            ModeBeautify _ -> "\n"
+            ModeBeautify _ -> eol
             ModeLegacy     -> ""
       in case lastElem st of
         LastElemCloseTag -> lastNewLine
@@ -487,10 +489,10 @@ printElemBeauty e = do
                                                   lastElem' <- getLastElem
                                                   case lastElem' of
                                                     LastElemNothing  -> return ()
-                                                    _                -> print' "\n"
+                                                    _                -> print' eol
                                                   
                                                   conditionalPrintIdent $ showElement $ changeEncodingInProcessingInstruction x $ outputEncoding cfg
-                                                  when (mode cfg == ModeLegacy) $ print' "\n"
+                                                  when (mode cfg == ModeLegacy) $ print' eol
                                                   setLastElem LastElemXmlHeader
       where
         changeEncodingInProcessingInstruction (SaxProcessingInstruction (target, value)) encodingName =
@@ -514,7 +516,7 @@ printElemBeauty e = do
                                   lastElem' <- getLastElem
                                   case lastElem' of
                                     
-                                    LastElemXmlHeader -> unless (isEmacsInstructions s) (print' "\n") -- Emacs instruction must be placed on the first line of file
+                                    LastElemXmlHeader -> unless (isEmacsInstructions s) (print' eol) -- Emacs instruction must be placed on the first line of file
                                     _ -> conditionalNewLine
                                   conditionalPrintIdent (showElement x)
                                   setLastElem LastElemComment
@@ -567,7 +569,7 @@ printElemBeauty e = do
     conditionalNewLine = do
       lastElem' <- getLastElem
       skippedIdent' <- getSkippedIdent
-      when (lastElem' /= LastElemChars && skippedIdent' == SkippedNothing) $ print' "\n"
+      when (lastElem' /= LastElemChars && skippedIdent' == SkippedNothing) $ print' eol
       
     conditionalPrintIdent x = do
       lastElem' <- getLastElem
