@@ -569,7 +569,7 @@ printElemBeauty e = do
     conditionalNewLine = do
       lastElem' <- getLastElem
       skippedIdent' <- getSkippedIdent
-      when (lastElem' /= LastElemChars && skippedIdent' == SkippedNothing) $ print' eol
+      when (lastElem' /= LastElemChars && lastElem' /= LastElemNothing && skippedIdent' == SkippedNothing) $ print' eol
       
     conditionalPrintIdent x = do
       lastElem' <- getLastElem
