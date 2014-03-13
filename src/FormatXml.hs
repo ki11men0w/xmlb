@@ -676,6 +676,3 @@ printElemStrip e = do
     conditionalSkipIdentSimply = do
       lastElem' <- getLastElem
       when (lastElem' == LastElemChars) skipIdentSimply
-
-
-  
