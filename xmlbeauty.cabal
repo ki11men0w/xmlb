@@ -25,4 +25,4 @@ executable xmlb
     main-is: xmlb.hs
     buildable: True
     hs-source-dirs: src
-    ghc-options: -O3
+    ghc-options: -O3 -fspec-constr-count=4
