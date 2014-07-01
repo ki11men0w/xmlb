@@ -29,6 +29,7 @@ import Control.Parallel.Strategies (rdeepseq, withStrategy)
 
 type EncodingName = String
 
+eol :: [Char]
 eol = "\r\n"
 
 data FormatMode = ModeBeautify -- ^ Форматирование "ёлочкой"
@@ -49,7 +50,7 @@ processFile :: Handle   -- ^ Исходный файл с XML документо
                                   -- то будет использована кодировка входного файла.
             -> FormatMode -- ^ Режим преобразования
             -> IO ()
-processFile inH inFileName outH inputEncoding outputEncoding mode = do
+processFile inH inFileName outH inputEncoding outputEncoding' mode' = do
   
   hSetBinaryMode inH True
   hSetBinaryMode outH True
@@ -63,24 +64,24 @@ processFile inH inFileName outH inputEncoding outputEncoding mode = do
   (inpt, inputEncodingName) <- case inputEncodingName' of
         Just inputEncodingName -> do
     
-          inputEncoding <- mkTextEncoding' inputEncodingName
+          inputEncoding' <- mkTextEncoding' inputEncodingName
       
-          inpt' <- withSystemTempFile "xmlbeauty.header" $ \_ tmpH ->
+          inpt'' <- withSystemTempFile "xmlbeauty.header" $ \_ tmpH ->
                     if BS.null inpt' then
                       return ""
                     else
                       do hSetBinaryMode tmpH True
                          BS.hPutStr tmpH inpt'
                          hSeek tmpH AbsoluteSeek 0
-                         hSetEncoding tmpH inputEncoding
+                         hSetEncoding tmpH inputEncoding'
                          -- Все эти strict* для того что-бы можно было закрыть
                          -- временный файл сразуже
                          !x <- withStrategy rdeepseq `liftM` hGetContents tmpH
                          return x
                     
-          hSetEncoding inH inputEncoding
-          inpt'' <- hGetContents inH
-          return (inpt' ++ inpt'', inputEncodingName)
+          hSetEncoding inH inputEncoding'
+          inpt''' <- hGetContents inH
+          return (inpt'' ++ inpt''', inputEncodingName)
         
         Nothing -> do
           -- Если кодировку определить не смогли, то считаем, что
@@ -97,21 +98,21 @@ processFile inH inFileName outH inputEncoding outputEncoding mode = do
       elms = map SaxElement' elms' ++ [SaxError' err']
   
   withSystemTempFile "xmlbeauty.xml" $ \_ tmpH ->
-    do let outputEncodingName = fromMaybe inputEncodingName outputEncoding
+    do let outputEncodingName = fromMaybe inputEncodingName outputEncoding'
        -- Если выходная кодировка не указана явно, то подразумевается что выходная кодировка должна
        -- совпадать с входной.
        hSetBinaryMode tmpH True
        hSetEncoding tmpH =<< mkTextEncoding' outputEncodingName
    
-       let c = FormattingConfig {outputEncoding = case mode of
+       let c = FormattingConfig {outputEncoding = case mode' of
                                                     ModeLegacy -> outputEncodingName
                                                     _          -> getEncodingName4XmlHeader outputEncodingName,
-                                 mode = mode}
+                                 mode = mode'}
            s = FormattingState {identLevel=0, elems=elms,
                                 lastElem = LastElemNothing, penultElem = LastElemNothing,
                                 postponedCharData = [], skippedIdent = SkippedNothing,
                                 result = ""}
-           !x = case mode of 
+           !x = case mode' of 
              ModeStrip      -> printTreeStrip c s
              ModeBeautify _ -> printTreeBeauty c s
              ModeLegacy     -> printTreeBeauty c s
@@ -313,14 +314,15 @@ escapeCharacterData = concatMap $ \c ->
   case c of
     '<' -> "&lt;"
     '&' -> "&amp;"
-    c   -> [c]
+    c'   -> [c']
 
+escapeAttributeData :: String -> [Char]
 escapeAttributeData = escapeAttributeData' . escapeCharacterData
   where
     escapeAttributeData' = concatMap $ \c ->
       case c of
         '"' -> "&quot;"
-        c   -> [c]
+        c'   -> [c']
 
 decodeRefEntity :: EntityRef -> Maybe String
 decodeRefEntity "amp"   = Just "&"
@@ -330,8 +332,10 @@ decodeRefEntity "lt"    = Just "<"
 decodeRefEntity "gt"    = Just ">"
 decodeRefEntity _       = Nothing
 
+decodeRefChar :: Int -> [Char]
 decodeRefChar c = [chr c]
 
+formatCharData :: forall t. t -> t
 formatCharData s = s -- "<![CDATA[" ++ s ++ "]]>"
 
 showElement :: SaxElement -> String
@@ -480,7 +484,7 @@ printTreeBeauty cfg st =
         _                -> ""
             
     e:ex -> case unwrapSaxElem e of
-      Just e -> let st' = runFormatting cfg st{elems=ex, result = ""} $ printElemBeauty e
+      Just x -> let st' = runFormatting cfg st{elems=ex, result = ""} $ printElemBeauty x
                 in result st' ++ printTreeBeauty cfg st'
       _ -> printTreeBeauty cfg st{elems=ex}
 
@@ -516,7 +520,7 @@ printElemBeauty e = do
     x@(SaxComment s)        ->  when (mode cfg /= ModeLegacy) $ do
                                   savePostponedCharData LastElemComment
                                   conditionalSkipIdentSimply
-                                  let isEmacsInstructions s = s =~ " -\\*- +.+:.+ -\\*- " :: Bool
+                                  let isEmacsInstructions s' = s' =~ " -\\*- +.+:.+ -\\*- " :: Bool
                                   lastElem' <- getLastElem
                                   case lastElem' of
                                     
@@ -583,10 +587,10 @@ printElemBeauty e = do
         printIdent :: String -> Formatting ()
         printIdent s = do cfg <- ask
                           st <- get
-                          let identString = case mode cfg of
+                          let identString' = case mode cfg of
                                               ModeBeautify i -> i
                                               ModeLegacy -> "\t"
-                          print' $ concat (replicate (identLevel st) identString) ++ s
+                          print' $ concat (replicate (identLevel st) identString') ++ s
 
     conditionalIdentMore = do
       lastElem' <- getLastElem
@@ -608,7 +612,7 @@ printTreeStrip cfg st =
   case elems st of
     [] -> ""
     e:ex -> case unwrapSaxElem e of
-      Just e -> let st' = runFormatting cfg st{elems=ex, result = ""} $ printElemStrip e
+      Just e' -> let st' = runFormatting cfg st{elems=ex, result = ""} $ printElemStrip e'
                 in result st' ++ printTreeStrip cfg st'
       _ -> printTreeStrip cfg st{elems=ex}
     

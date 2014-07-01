@@ -14,9 +14,11 @@ import System.FilePath.Glob
 
 import FormatXml
 
+programVersion :: String
 programVersion = "2.2.0.1 (haskell)"
 
-defaultSpaceIdent = 3 :: Int
+defaultSpaceIdent :: Int
+defaultSpaceIdent = 3
 
 
 -- | Флаги коммандной строки
@@ -31,6 +33,7 @@ data Flags = Flags
                inFileNames :: [FilePath]
              } deriving (Data, Typeable)
                                 
+opts' :: IO Flags
 opts' = getProgName >>= \programName -> return $
         Flags { backup =
                    def
@@ -69,6 +72,7 @@ opts' = getProgName >>= \programName -> return $
                     "       " ++ programName ++ " OPTIONS < somefile.xml > somefile.xml"]
 
 
+checkOptions :: Flags -> IO ()
 checkOptions opts = do
   hIsTerminalDevice stdin >>= \t ->
     when (not t && (not $ null $ inFileNames opts)) $
