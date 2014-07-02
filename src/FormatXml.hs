@@ -254,12 +254,16 @@ mkTextEncoding' en =
 getEncodingName4XmlHeader :: EncodingName -> String
 getEncodingName4XmlHeader en =
   case normalized of
+    "UTF16"   -> "UTF-16"
     "UTF16LE" -> "UTF-16"
     "UTF16BE" -> "UTF-16"
+    "UTF32"   -> "UTF-32"
     "UTF32LE" -> "UTF-32"
     "UTF32BE" -> "UTF-32"
     "CP1251"  -> "WINDOWS-1251"
+    "WINDOWS1251" -> "WINDOWS-1251"
     "CP866"   -> "WINDOWS-866"
+    "WINDOWS866"  -> "WINDOWS-866"
     "ASCII"   -> "ISO-8859-1"
     "LATIN1"  -> "ISO-8859-1"
     _         -> en

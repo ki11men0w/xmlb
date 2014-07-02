@@ -1,0 +1,410 @@
+<?xml version="1.0" encoding="UTF-8"?><!-- -*- encoding:utf-8-dos -*- -->
+<!-- ddd -->
+<!--  Lorem ipsum dolor sit amet, consectetur adipiscing elit. Donec eu felis et felis tristique varius et at leo. Morbi magna arcu, gravida tincidunt sem a, hendrerit congue neque. Quisque porta nulla est, dictum consectetur metus dapibus vitae. Suspendisse potenti. Curabitur sapien tortor, vulputate eget nunc tempor, ultrices bibendum velit. Curabitur laoreet consectetur elementum. Proin euismod urna at ante mollis, quis tristique purus eleifend. Cras varius dolor sit amet dolor pretium bibendum.
+
+Vestibulum at neque nisi. Nam pharetra, ligula eu facilisis porttitor, tortor urna ornare odio, quis euismod turpis sapien in massa. Morbi sagittis accumsan auctor. Nunc arcu orci, cursus ut tellus in, euismod lobortis leo. Integer sodales adipiscing convallis. Aliquam suscipit leo eu convallis sollicitudin. Nulla euismod, nulla a tempor vehicula, libero nisl vestibulum magna, id vehicula erat arcu sed libero. Sed vitae rutrum leo. Pellentesque sed adipiscing magna. Nam nec euismod libero, id fringilla nisi. Duis blandit facilisis massa et porta. Fusce ac elit hendrerit, eleifend nulla sit amet, vehicula ligula. Fusce non neque eget lorem venenatis tempor.
+
+Nulla et dictum mi, non posuere augue. Phasellus vel tortor odio. Curabitur eget nisl non massa consequat fringilla. Donec blandit eros id faucibus pretium. Fusce rhoncus malesuada lectus volutpat volutpat. Proin sed vulputate leo. Fusce orci arcu, interdum ac ipsum sed, pellentesque molestie diam. Sed ullamcorper viverra enim ac commodo. Vestibulum elementum sem vitae urna varius fermentum. Sed turpis magna, auctor sit amet molestie ut, viverra non erat. Sed placerat adipiscing eros et sagittis. Fusce sodales accumsan ullamcorper.
+
+Quisque egestas consectetur eros non aliquam. Etiam bibendum, purus sit amet sollicitudin auctor, ante magna semper arcu, ac blandit arcu nunc sit amet urna. Nullam tempus auctor ligula sit amet adipiscing. Ut nisl orci, venenatis eget facilisis sit amet, tristique sed tellus. Nunc egestas pulvinar enim id ultrices. Vivamus at dictum enim, non luctus quam. Etiam et nunc sit amet nunc auctor accumsan quis vehicula elit. Morbi eu quam malesuada, suscipit nisi nec, convallis velit. Cras vitae luctus metus. Praesent ac cursus tortor. Pellentesque eget augue non enim ultrices vestibulum.
+
+Cras eget sodales enim, et sodales orci. Integer augue mi, lobortis sed urna ut, vestibulum suscipit sapien. Class aptent taciti sociosqu ad litora torquent per conubia nostra, per inceptos himenaeos. Mauris pretium odio ac lorem consequat ultricies. Mauris euismod nec purus sed dictum. Morbi quis leo justo. Suspendisse congue dolor at velit scelerisque molestie. Integer in bibendum enim, in accumsan turpis. Integer faucibus vulputate elit, eget consectetur diam accumsan ut. Interdum et malesuada fames ac ante ipsum primis in faucibus. Mauris sollicitudin, sem vel semper aliquet, felis metus lacinia magna, ut adipiscing odio est sed velit. Donec ac massa consectetur, tincidunt neque eget, mattis ligula -->
+<Проверка xmlns:xxx="XXX" zzz="ZZZ" aaa="AAA" проверка25="ПРОВЕРКА25 и т.п.">
+  <tests>
+    <test>
+      <?test1 qwerty ddd проверка?>
+      <xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns="http://www.net.billing.ru/xutl/SchemaUpdate" targetNamespace="http://www.net.billing.ru/xutl/SchemaUpdate" elementFormDefault="qualified" attributeFormDefault="unqualified" version="Id: bisUpdate.xsd, v 025.00 28.05.2012T12:00:00">
+        <xs:element name="bisUpdate" type="BisUpdate">
+          <xs:annotation>
+            <xs:documentation>Коментарий описывающий корневой элемент</xs:documentation>
+          </xs:annotation>
+          <xs:unique name="complexUK">
+            <xs:selector xpath="./complex_list/complex"/>
+            <xs:field xpath="@name"/>
+          </xs:unique>
+        </xs:element>
+        <xs:simpleType name="S_ColumnList">
+          <xs:restriction base="xs:string">
+            <xs:pattern value="(([A-Z])([A-Z]|[0-9]|_|$|#){0,29})(,([A-Z])([A-Z]|[0-9]|_|$|#){0,29})*"/>
+          </xs:restriction>
+        </xs:simpleType>
+      </xs:schema>
+    </test>
+    <test>Lorem ipsum dolor sit amet, consectetur adipiscing elit. Donec eu felis et felis tristique varius et at leo. Morbi magna arcu, gravida tincidunt sem a, hendrerit congue neque. Quisque porta nulla est, dictum consectetur metus dapibus vitae. Suspendisse potenti. Curabitur sapien tortor, vulputate eget nunc tempor, ultrices bibendum velit. Curabitur laoreet consectetur elementum. Proin euismod urna at ante mollis, quis tristique purus eleifend. Cras varius dolor sit amet dolor pretium bibendum.
+
+Vestibulum at neque nisi. Nam pharetra, ligula eu facilisis porttitor, tortor urna ornare odio, quis euismod turpis sapien in massa. Morbi sagittis accumsan auctor. Nunc arcu orci, cursus ut tellus in, euismod lobortis leo. Integer sodales adipiscing convallis. Aliquam suscipit leo eu convallis sollicitudin. Nulla euismod, nulla a tempor vehicula, libero nisl vestibulum magna, id vehicula erat arcu sed libero. Sed vitae rutrum leo. Pellentesque sed adipiscing magna. Nam nec euismod libero, id fringilla nisi. Duis blandit facilisis massa et porta. Fusce ac elit hendrerit, eleifend nulla sit amet, vehicula ligula. Fusce non neque eget lorem venenatis tempor.
+
+Nulla et dictum mi, non posuere augue. Phasellus vel tortor odio. Curabitur eget nisl non massa consequat fringilla. Donec blandit eros id faucibus pretium. Fusce rhoncus malesuada lectus volutpat volutpat. Proin sed vulputate leo. Fusce orci arcu, interdum ac ipsum sed, pellentesque molestie diam. Sed ullamcorper viverra enim ac commodo. Vestibulum elementum sem vitae urna varius fermentum. Sed turpis magna, auctor sit amet molestie ut, viverra non erat. Sed placerat adipiscing eros et sagittis. Fusce sodales accumsan ullamcorper.
+
+Quisque egestas consectetur eros non aliquam. Etiam bibendum, purus sit amet sollicitudin auctor, ante magna semper arcu, ac blandit arcu nunc sit amet urna. Nullam tempus auctor ligula sit amet adipiscing. Ut nisl orci, venenatis eget facilisis sit amet, tristique sed tellus. Nunc egestas pulvinar enim id ultrices. Vivamus at dictum enim, non luctus quam. Etiam et nunc sit amet nunc auctor accumsan quis vehicula elit. Morbi eu quam malesuada, suscipit nisi nec, convallis velit. Cras vitae luctus metus. Praesent ac cursus tortor. Pellentesque eget augue non enim ultrices vestibulum.
+
+Cras eget sodales enim, et sodales orci. Integer augue mi, lobortis sed urna ut, vestibulum suscipit sapien. Class aptent taciti sociosqu ad litora torquent per conubia nostra, per inceptos himenaeos. Mauris pretium odio ac lorem consequat ultricies. <i>Mauris euismod <b>nec purus sed </b>dictum. </i>Morbi quis leo justo. Suspendisse congue dolor at velit scelerisque molestie. Integer in bibendum enim, in accumsan turpis. Integer faucibus vulputate elit, eget consectetur diam accumsan ut. Interdum et malesuada fames ac ante ipsum primis in faucibus. Mauris sollicitudin, sem vel semper aliquet, felis metus lacinia magna, ut adipiscing odio est sed velit. Donec ac massa consectetur, tincidunt neque eget, mattis ligula</test>
+    <test>
+
+Lorem ipsum dolor sit amet, consectetur adipiscing elit. Donec eu felis et felis tristique varius et at leo. Morbi magna arcu, gravida tincidunt sem a, hendrerit congue neque. Quisque porta nulla est, dictum consectetur metus dapibus vitae. Suspendisse potenti. Curabitur sapien tortor, vulputate eget nunc tempor, ultrices bibendum velit. Curabitur laoreet consectetur elementum. Proin euismod urna at ante mollis, quis tristique purus eleifend. Cras varius dolor sit amet dolor pretium bibendum.
+
+Vestibulum at neque nisi. Nam pharetra, ligula eu facilisis porttitor, tortor urna ornare odio, quis euismod turpis sapien in massa. Morbi sagittis accumsan auctor. Nunc arcu orci, cursus ut tellus in, euismod lobortis leo. Integer sodales adipiscing convallis. Aliquam suscipit leo eu convallis sollicitudin. Nulla euismod, nulla a tempor vehicula, libero nisl vestibulum magna, id vehicula erat arcu sed libero. Sed vitae rutrum leo. Pellentesque sed adipiscing magna. Nam nec euismod libero, id fringilla nisi. Duis blandit facilisis massa et porta. Fusce ac elit hendrerit, eleifend nulla sit amet, vehicula ligula. Fusce non neque eget lorem venenatis tempor.
+
+Nulla et dictum mi, non posuere augue. Phasellus vel tortor odio. Curabitur eget nisl non massa consequat fringilla. Donec blandit eros id faucibus pretium. Fusce rhoncus malesuada lectus volutpat volutpat. Proin sed vulputate leo. Fusce orci arcu, interdum ac ipsum sed, pellentesque molestie diam. Sed ullamcorper viverra enim ac commodo. Vestibulum elementum sem vitae urna varius fermentum. Sed turpis magna, auctor sit amet molestie ut, viverra non erat. Sed placerat adipiscing eros et sagittis. Fusce sodales accumsan ullamcorper.
+
+Quisque egestas consectetur eros non aliquam. Etiam bibendum, purus sit amet sollicitudin auctor, ante magna semper arcu, ac blandit arcu nunc sit amet urna. Nullam tempus auctor ligula sit amet adipiscing. Ut nisl orci, venenatis eget facilisis sit amet, tristique sed tellus. Nunc egestas pulvinar enim id ultrices. Vivamus at dictum enim, non luctus quam. Etiam et nunc sit amet nunc auctor accumsan quis vehicula elit. Morbi eu quam malesuada, suscipit nisi nec, convallis velit. Cras vitae luctus metus. Praesent ac cursus tortor. Pellentesque eget augue non enim ultrices vestibulum.
+
+Cras eget sodales enim, et sodales orci. Integer augue mi, lobortis sed urna ut, vestibulum suscipit sapien. Class aptent taciti sociosqu ad litora torquent per conubia nostra, per inceptos himenaeos. Mauris pretium odio ac lorem consequat ultricies. Mauris euismod nec purus sed dictum. Morbi quis leo justo. Suspendisse congue dolor at velit scelerisque molestie. Integer in bibendum enim, in accumsan turpis. Integer faucibus vulputate elit, eget consectetur diam accumsan ut. Interdum et malesuada fames ac ante ipsum primis in faucibus. Mauris sollicitudin, sem vel semper aliquet, felis metus lacinia magna, ut adipiscing odio est sed velit. Donec ac massa consectetur, tincidunt neque eget, mattis ligula
+
+		</test>
+    <?test2 Lorem ipsum dolor sit amet, consectetur adipiscing elit. Donec eu felis et felis tristique varius et at leo. Morbi magna arcu, gravida tincidunt sem a, hendrerit congue neque. Quisque porta nulla est, dictum consectetur metus dapibus vitae. Suspendisse potenti. Curabitur sapien tortor, vulputate eget nunc tempor, ultrices bibendum velit. Curabitur laoreet consectetur elementum. Proin euismod urna at ante mollis, quis tristique purus eleifend. Cras varius dolor sit amet dolor pretium bibendum.
+
+Vestibulum at neque nisi. Nam pharetra, ligula eu facilisis porttitor, tortor urna ornare odio, quis euismod turpis sapien in massa. Morbi sagittis accumsan auctor. Nunc arcu orci, cursus ut tellus in, euismod lobortis leo. Integer sodales adipiscing convallis. Aliquam suscipit leo eu convallis sollicitudin. Nulla euismod, nulla a tempor vehicula, libero nisl vestibulum magna, id vehicula erat arcu sed libero. Sed vitae rutrum leo. Pellentesque sed adipiscing magna. Nam nec euismod libero, id fringilla nisi. Duis blandit facilisis massa et porta. Fusce ac elit hendrerit, eleifend nulla sit amet, vehicula ligula. Fusce non neque eget lorem venenatis tempor.
+
+Nulla et dictum mi, non posuere augue. Phasellus vel tortor odio. Curabitur eget nisl non massa consequat fringilla. Donec blandit eros id faucibus pretium. Fusce rhoncus malesuada lectus volutpat volutpat. Proin sed vulputate leo. Fusce orci arcu, interdum ac ipsum sed, pellentesque molestie diam. Sed ullamcorper viverra enim ac commodo. Vestibulum elementum sem vitae urna varius fermentum. Sed turpis magna, auctor sit amet molestie ut, viverra non erat. Sed placerat adipiscing eros et sagittis. Fusce sodales accumsan ullamcorper.
+
+Quisque egestas consectetur eros non aliquam. Etiam bibendum, purus sit amet sollicitudin auctor, ante magna semper arcu, ac blandit arcu nunc sit amet urna. Nullam tempus auctor ligula sit amet adipiscing. Ut nisl orci, venenatis eget facilisis sit amet, tristique sed tellus. Nunc egestas pulvinar enim id ultrices. Vivamus at dictum enim, non luctus quam. Etiam et nunc sit amet nunc auctor accumsan quis vehicula elit. Morbi eu quam malesuada, suscipit nisi nec, convallis velit. Cras vitae luctus metus. Praesent ac cursus tortor. Pellentesque eget augue non enim ultrices vestibulum.
+
+Cras eget sodales enim, et sodales orci. Integer augue mi, lobortis sed urna ut, vestibulum suscipit sapien. Class aptent taciti sociosqu ad litora torquent per conubia nostra, per inceptos himenaeos. Mauris pretium odio ac lorem consequat ultricies. Mauris euismod nec purus sed dictum. Morbi quis leo justo. Suspendisse congue dolor at velit scelerisque molestie. Integer in bibendum enim, in accumsan turpis. Integer faucibus vulputate elit, eget consectetur diam accumsan ut. Interdum et malesuada fames ac ante ipsum primis in faucibus. Mauris sollicitudin, sem vel semper aliquet, felis metus lacinia magna, ut adipiscing odio est sed velit. Donec ac massa consectetur, tincidunt neque eget, mattis ligula?>
+    <!-- empti element wo closing tag-->
+    <test/>
+    <!-- empti element wo closing tag and with attributes-->
+    <test qqq="" uuu=""/>
+    <!-- empti element with closing tag-->
+    <test></test>
+    <!-- empti element with closing tag and with attributes-->
+    <test qqq="" uuu=""></test>
+    <test qqq="" uuu="">
+      <!-- коментарий -->
+    </test>
+    <test проверка="Lorem ipsum dolor sit amet, consectetur adipiscing elit. Donec eu felis et felis tristique varius et at leo. Morbi magna arcu, gravida tincidunt sem a, hendrerit congue neque. Quisque porta nulla est, dictum consectetur metus dapibus vitae. Suspendisse potenti. Curabitur sapien tortor, vulputate eget nunc tempor, ultrices bibendum velit. Curabitur laoreet consectetur elementum. Proin euismod urna at ante mollis, quis tristique purus eleifend. Cras varius dolor sit amet dolor pretium bibendum.
+
+Vestibulum at neque nisi. Nam pharetra, ligula eu facilisis porttitor, tortor urna ornare odio, quis euismod turpis sapien in massa. Morbi sagittis accumsan auctor. Nunc arcu orci, cursus ut tellus in, euismod lobortis leo. Integer sodales adipiscing convallis. Aliquam suscipit leo eu convallis sollicitudin. Nulla euismod, nulla a tempor vehicula, libero nisl vestibulum magna, id vehicula erat arcu sed libero. Sed vitae rutrum leo. Pellentesque sed adipiscing magna. Nam nec euismod libero, id fringilla nisi. Duis blandit facilisis massa et porta. Fusce ac elit hendrerit, eleifend nulla sit amet, vehicula ligula. Fusce non neque eget lorem venenatis tempor.
+
+Nulla et dictum mi, non posuere augue. Phasellus vel tortor odio. Curabitur eget nisl non massa consequat fringilla. Donec blandit eros id faucibus pretium. Fusce rhoncus malesuada lectus volutpat volutpat. Proin sed vulputate leo. Fusce orci arcu, interdum ac ipsum sed, pellentesque molestie diam. Sed ullamcorper viverra enim ac commodo. Vestibulum elementum sem vitae urna varius fermentum. Sed turpis magna, auctor sit amet molestie ut, viverra non erat. Sed placerat adipiscing eros et sagittis. Fusce sodales accumsan ullamcorper.
+
+Quisque egestas consectetur eros non aliquam. Etiam bibendum, purus sit amet sollicitudin auctor, ante magna semper arcu, ac blandit arcu nunc sit amet urna. Nullam tempus auctor ligula sit amet adipiscing. Ut nisl orci, venenatis eget facilisis sit amet, tristique sed tellus. Nunc egestas pulvinar enim id ultrices. Vivamus at dictum enim, non luctus quam. Etiam et nunc sit amet nunc auctor accumsan quis vehicula elit. Morbi eu quam malesuada, suscipit nisi nec, convallis velit. Cras vitae luctus metus. Praesent ac cursus tortor. Pellentesque eget augue non enim ultrices vestibulum.
+
+Cras eget sodales enim, et sodales orci. Integer augue mi, lobortis sed urna ut, vestibulum suscipit sapien. Class aptent taciti sociosqu ad litora torquent per conubia nostra, per inceptos himenaeos. Mauris pretium odio ac lorem consequat ultricies. Mauris euismod nec purus sed dictum. Morbi quis leo justo. Suspendisse congue dolor at velit scelerisque molestie. Integer in bibendum enim, in accumsan turpis. Integer faucibus vulputate elit, eget consectetur diam accumsan ut. Interdum et malesuada fames ac ante ipsum primis in faucibus. Mauris sollicitudin, sem vel semper aliquet, felis metus lacinia magna, ut adipiscing odio est sed velit. Donec ac massa consectetur, tincidunt neque eget, mattis ligula">Гол!!!</test>
+    <!-- Вложенные тэги -->
+    <test1>
+      <test2>
+        <test3>
+          <test4>
+            <!-- qqq -->
+            <test5>Yaa<!-- aaa --></test5>
+            <test5>Yoo</test5>
+            <test5>Yuu</test5>
+          </test4>
+          <test4>
+            <test5>Yaa</test5>
+            <test5>Yoo</test5>
+            <test5>Yuu</test5>
+          </test4>
+          <test4>
+            <test5>Yaa</test5>
+            <test5>Yoo</test5>
+            <test5>Yuu</test5>
+          </test4>
+        </test3>
+        <test3>
+          <test4>
+            <test5>Yaa</test5>
+            <test5>Yoo</test5>
+            <test5>Yuu</test5>
+          </test4>
+          <test4>
+            <test5>Yaa</test5>
+            <test5>Yoo</test5>
+            <test5>Yuu</test5>
+          </test4>
+          <test4>
+            <test5>Yaa</test5>
+            <test5>Yoo</test5>
+            <test5>Yuu</test5>
+          </test4>
+        </test3>
+        <test3>
+          <test4>
+            <test5>Yaa</test5>
+            <test5>Yoo</test5>
+            <test5>Yuu</test5>
+          </test4>
+          <test4>
+            <test5>Yaa</test5>
+            <test5>Yoo</test5>
+            <test5>Yuu</test5>
+          </test4>
+          <test4>
+            <test5>Yaa</test5>
+            <test5>Yoo</test5>
+            <test5>Yuu</test5>
+          </test4>
+        </test3>
+      </test2>
+      <test2>
+        <test3>
+          <test4>
+            <test5>Yaa</test5>
+            <test5>Yoo</test5>
+            <test5>Yuu</test5>
+          </test4>
+          <test4>
+            <test5>Yaa</test5>
+            <test5>Yoo</test5>
+            <test5>Yuu</test5>
+          </test4>
+          <test4>
+            <test5>Yaa</test5>
+            <test5>Yoo</test5>
+            <test5>Yuu</test5>
+          </test4>
+        </test3>
+        <test3>
+          <test4>
+            <test5>Yaa</test5>
+            <test5>Yoo</test5>
+            <test5>Yuu</test5>
+          </test4>
+          <test4>
+            <test5>Yaa</test5>
+            <test5>Yoo</test5>
+            <test5>Yuu</test5>
+          </test4>
+          <test4>
+            <test5>Yaa</test5>
+            <test5>Yoo</test5>
+            <test5>Yuu</test5>
+          </test4>
+        </test3>
+        <test3>
+          <test4>
+            <test5>Yaa</test5>
+            <test5>Yoo</test5>
+            <test5>Yuu</test5>
+          </test4>
+          <test4>
+            <test5>Yaa</test5>
+            <test5>Yoo</test5>
+            <test5>Yuu</test5>
+          </test4>
+          <test4>
+            <test5>Yaa</test5>
+            <test5>Yoo</test5>
+            <test5>Yuu</test5>
+          </test4>
+        </test3>
+      </test2>
+      <test2>
+        <test3>
+          <test4>
+            <test5>Yaa</test5>
+            <test5>Yoo</test5>
+            <test5>Yuu</test5>
+          </test4>
+          <test4>
+            <test5>Yaa</test5>
+            <test5>Yoo</test5>
+            <test5>Yuu</test5>
+          </test4>
+          <test4>
+            <test5>Yaa</test5>
+            <test5>Yoo</test5>
+            <test5>Yuu</test5>
+          </test4>
+        </test3>
+        <test3>
+          <test4>
+            <test5>Yaa</test5>
+            <test5>Yoo</test5>
+            <test5>Yuu</test5>
+          </test4>
+          <test4>
+            <test5>Yaa</test5>
+            <test5>Yoo</test5>
+            <test5>Yuu</test5>
+          </test4>
+          <test4>
+            <test5>Yaa</test5>
+            <test5>Yoo</test5>
+            <test5>Yuu</test5>
+          </test4>
+        </test3>
+        <test3>
+          <test4>
+            <test5>Yaa</test5>
+            <test5>Yoo</test5>
+            <test5>Yuu</test5>
+          </test4>
+          <test4>
+            <test5>Yaa</test5>
+            <test5>Yoo</test5>
+            <test5>Yuu</test5>
+          </test4>
+          <test4>
+            <test5>Yaa</test5>
+            <test5>Yoo</test5>
+            <test5>Yuu</test5>
+          </test4>
+        </test3>
+      </test2>
+    </test1>
+    <проверка1>
+      <проверка2>
+        <проверка3>
+          <проверка4>
+            <!-- qqq -->
+            <проверка5>Yaa<!-- aaa --></проверка5>
+            <проверка5>Yoo</проверка5>
+            <проверка5>Yuu</проверка5>
+          </проверка4>
+          <проверка4>
+            <проверка5>Yaa</проверка5>
+            <проверка5>Yoo</проверка5>
+            <проверка5>Yuu</проверка5>
+          </проверка4>
+          <проверка4>
+            <проверка5>Yaa</проверка5>
+            <проверка5>Yoo</проверка5>
+            <проверка5>Yuu</проверка5>
+          </проверка4>
+        </проверка3>
+        <проверка3>
+          <проверка4>
+            <проверка5>Yaa</проверка5>
+            <проверка5>Yoo</проверка5>
+            <проверка5>Yuu</проверка5>
+          </проверка4>
+          <проверка4>
+            <проверка5>Yaa</проверка5>
+            <проверка5>Yoo</проверка5>
+            <проверка5>Yuu</проверка5>
+          </проверка4>
+          <проверка4>
+            <проверка5>Yaa</проверка5>
+            <проверка5>Yoo</проверка5>
+            <проверка5>Yuu</проверка5>
+          </проверка4>
+        </проверка3>
+        <проверка3>
+          <проверка4>
+            <проверка5>Yaa</проверка5>
+            <проверка5>Yoo</проверка5>
+            <проверка5>Yuu</проверка5>
+          </проверка4>
+          <проверка4>
+            <проверка5>Yaa</проверка5>
+            <проверка5>Yoo</проверка5>
+            <проверка5>Yuu</проверка5>
+          </проверка4>
+          <проверка4>
+            <проверка5>Yaa</проверка5>
+            <проверка5>Yoo</проверка5>
+            <проверка5>Yuu</проверка5>
+          </проверка4>
+        </проверка3>
+      </проверка2>
+      <проверка2>
+        <проверка3>
+          <проверка4>
+            <проверка5>Yaa</проверка5>
+            <проверка5>Yoo</проверка5>
+            <проверка5>Yuu</проверка5>
+          </проверка4>
+          <проверка4>
+            <проверка5>Yaa</проверка5>
+            <проверка5>Yoo</проверка5>
+            <проверка5>Yuu</проверка5>
+          </проверка4>
+          <проверка4>
+            <проверка5>Yaa</проверка5>
+            <проверка5>Yoo</проверка5>
+            <проверка5>Yuu</проверка5>
+          </проверка4>
+        </проверка3>
+        <проверка3>
+          <проверка4>
+            <проверка5>Yaa</проверка5>
+            <проверка5>Yoo</проверка5>
+            <проверка5>Yuu</проверка5>
+          </проверка4>
+          <проверка4>
+            <проверка5>Yaa</проверка5>
+            <проверка5>Yoo</проверка5>
+            <проверка5>Yuu</проверка5>
+          </проверка4>
+          <проверка4>
+            <проверка5>Yaa</проверка5>
+            <проверка5>Yoo</проверка5>
+            <проверка5>Yuu</проверка5>
+          </проверка4>
+        </проверка3>
+        <проверка3>
+          <проверка4>
+            <проверка5>Yaa</проверка5>
+            <проверка5>Yoo</проверка5>
+            <проверка5>Yuu</проверка5>
+          </проверка4>
+          <проверка4>
+            <проверка5>Yaa</проверка5>
+            <проверка5>Yoo</проверка5>
+            <проверка5>Yuu</проверка5>
+          </проверка4>
+          <проверка4>
+            <проверка5>Yaa</проверка5>
+            <проверка5>Yoo</проверка5>
+            <проверка5>Yuu</проверка5>
+          </проверка4>
+        </проверка3>
+      </проверка2>
+      <проверка2>
+        <проверка3>
+          <проверка4>
+            <проверка5>Yaa</проверка5>
+            <проверка5>Yoo</проверка5>
+            <проверка5>Yuu</проверка5>
+          </проверка4>
+          <проверка4>
+            <проверка5>Yaa</проверка5>
+            <проверка5>Yoo</проверка5>
+            <проверка5>Yuu</проверка5>
+          </проверка4>
+          <проверка4>
+            <проверка5>Yaa</проверка5>
+            <проверка5>Yoo</проверка5>
+            <проверка5>Yuu</проверка5>
+          </проверка4>
+        </проверка3>
+        <проверка3>
+          <проверка4>
+            <проверка5>Yaa</проверка5>
+            <проверка5>Yoo</проверка5>
+            <проверка5>Yuu</проверка5>
+          </проверка4>
+          <проверка4>
+            <проверка5>Yaa</проверка5>
+            <проверка5>Yoo</проверка5>
+            <проверка5>Yuu</проверка5>
+          </проверка4>
+          <проверка4>
+            <проверка5>Yaa</проверка5>
+            <проверка5>Yoo</проверка5>
+            <проверка5>Yuu</проверка5>
+          </проверка4>
+        </проверка3>
+        <проверка3>
+          <проверка4>
+            <проверка5>Yaa</проверка5>
+            <проверка5>Yoo</проверка5>
+            <проверка5>Yuu</проверка5>
+          </проверка4>
+          <проверка4>
+            <проверка5>Yaa</проверка5>
+            <проверка5>Yoo</проверка5>
+            <проверка5>Yuu</проверка5>
+          </проверка4>
+          <проверка4>
+            <проверка5>Yaa</проверка5>
+            <проверка5>Yoo</проверка5>
+            <проверка5>Yuu</проверка5>
+          </проверка4>
+        </проверка3>
+      </проверка2>
+    </проверка1>
+  </tests>
+</Проверка>
