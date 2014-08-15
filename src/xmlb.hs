@@ -67,7 +67,7 @@ opts' = getProgName >>= \programName -> return $
               }
         &= program programName
         &= summary ("XML Beautifier version " ++ programVersion)
-        &= details ["Format xml file(s). If input data is/are common file(s) and no redirection of STDOUT is specified than input files will be changed inplace. If STDIN is not a terminal (e.g. because of redirection) than result will be printed to STDOUT.",
+        &= details ["Format xml file(s). If input data is/are common file(s) and no redirection of STDOUT is specified than input files will be changed inplace. If STDIN is not a terminal (e.g. because of redirection) then result will be printed to STDOUT.",
                     "usage: " ++ programName ++ " OPTIONS XMLFILE1 [XMLFILE2 ...]",
                     "       " ++ programName ++ " OPTIONS < somefile.xml > somefile.xml"]
 
