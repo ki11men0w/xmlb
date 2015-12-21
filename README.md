@@ -1,6 +1,6 @@
 # xmlb
 ###XML beautifier.
-Indent nested tags in XML making it human readable.
+Command line utility that indent nested tags in XML making it human readable.
 You can also perform the opposite effect: to remove all non-essential whitespace from XML.
 
 ```
