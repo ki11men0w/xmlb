@@ -53,8 +53,8 @@ action :: CommandArgs -> FilePath -> FilePath -> IO ()
 action options inFileName outFileName = do
 
   withBinaryFile inFileName ReadMode $ \inH -> do
-  withBinaryFile outFileName WriteMode $ \outH -> do
-    action' options (UseHandle inH) (UseHandle outH)
+    withBinaryFile outFileName WriteMode $ \outH -> do
+      action' options (UseHandle inH) (UseHandle outH)
 
 action' :: CommandArgs -> StdStream -> StdStream -> IO ()
 action' options inH outH = do
