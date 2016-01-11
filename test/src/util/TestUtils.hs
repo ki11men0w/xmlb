@@ -5,6 +5,9 @@ import System.FilePath ((</>), (<.>), takeFileName, takeDirectory, splitDirector
 import System.IO (withBinaryFile, hGetContents, IOMode(..))
 import Control.Monad (unless, when)
 import Test.Hspec (expectationFailure)
+import System.Process (readProcessWithExitCode)
+import System.Exit (ExitCode(..))
+import Data.Char (isSpace)
 
 resourceFile_invalid = "invalid.xml.bad"
 resourceFile_empty = "empty.txt"
@@ -30,6 +33,29 @@ getDirPrefix = do
   if inBuildDir
     then return $ Just $ ".." </> ".." </> ".."
     else return Nothing
+
+trim :: String -> String 
+trim = dropWhile isSpace . dropWhileEnd isSpace
+  where
+    dropWhileEnd :: (a -> Bool) -> [a] -> [a]
+    dropWhileEnd p = foldr (\x xs -> if p x && null xs then [] else x : xs) []
+
+
+getDistDir :: IO (Maybe String)
+getDistDir = do
+  let stackCommand = "stack"
+      stackArgs = ["path", "--dist-dir"]
+      stackInput = ""
+  (exitCode, dir', err') <- readProcessWithExitCode stackCommand stackArgs stackInput
+  let (dir, err) = (trim dir', trim err')
+  return $
+         if exitCode /= ExitSuccess
+           then Nothing
+           else if err /= ""
+                  then Nothing
+                  else if dir == ""
+                         then Nothing
+                         else Just dir
 
 getDirWithResources :: IO FilePath
 getDirWithResources = do

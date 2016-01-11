@@ -1,6 +1,7 @@
 {-  -*- coding:utf-8 -*-  -}
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE FlexibleContexts #-}
 module FormatXml (
     processFile,
     EncodingName,
