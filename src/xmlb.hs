@@ -15,7 +15,7 @@ import System.FilePath.Glob
 import FormatXml
 
 programVersion :: String
-programVersion = "2.2.0.1 (haskell)"
+programVersion = "1.0.0 (haskell)"
 
 defaultSpaceIdent :: Int
 defaultSpaceIdent = 3

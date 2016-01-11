@@ -9,9 +9,9 @@ import System.Process (proc, shell, createProcess, waitForProcess, CreateProcess
 import System.Exit (ExitCode(..))
 import Control.Exception (Exception(), throw)
 import Data.Typeable (Typeable())
-import Data.Char (isSpace)
 import Data.List (isInfixOf, isPrefixOf)
 import System.Directory (copyFile)
+import Data.Maybe (fromMaybe)
 
 
 data ExitFailureException = ExitFailureException {command:: String, exitCode :: Int, message :: String} deriving (Typeable)
@@ -21,18 +21,14 @@ instance Show ExitFailureException where
 
 getExeFileName :: IO String
 getExeFileName = do
-  let defaultResult = "dist" </> "build" </> "xmlb" </> "xmlb"
+  distDir <- getDistDir
+  let defaultResult = fromMaybe "dist" distDir </> "build" </> "xmlb" </> "xmlb"
 
   prefix <- getDirPrefix
   return $ maybe defaultResult (</> defaultResult) prefix
 
 stderrFileName = "stderr.txt"
 
-
-trim = dropWhile isSpace . dropWhileEnd isSpace
-  where
-    dropWhileEnd :: (a -> Bool) -> [a] -> [a]
-    dropWhileEnd p = foldr (\x xs -> if p x && null xs then [] else x : xs) []
 
 exitFailureException :: Selector ExitFailureException
 exitFailureException = const True

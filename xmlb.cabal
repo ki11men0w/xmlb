@@ -1,5 +1,5 @@
 name: xmlb
-version: 0.0.1
+version: 1.0.0
 cabal-version: >=1.2
 build-type: Simple
 license: PublicDomain
@@ -12,12 +12,11 @@ description: The main porpose of this utility is to make XML documents human
              of removing insignificant white spaces from XML documents.
 category: XML
 author: Maksim Golubev
-tested-with: GHC ==7.0.4
-tested-with: GHC ==7.4.1
+tested-with: GHC ==7.10.3
 data-dir: ""
  
 executable xmlb
-    build-depends: HaXml >=1.22.5, base >=4.3.1.0,
+    build-depends: HaXml ==1.22.5, base >=4.3.1.0,
                    cmdargs >=0.9.3, temporary >=1.1.2.3, Glob >=0.7.1,
                    parallel, text, bytestring, regex-posix, mtl, filepath,
                    directory
