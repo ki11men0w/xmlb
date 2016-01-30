@@ -14,8 +14,13 @@ import System.FilePath.Glob
 
 import FormatXml
 
+import Paths_xmlb (version)
+import Data.List (intersperse)
+import Data.Version (Version(..))
+
 programVersion :: String
-programVersion = "1.0.0 (haskell)"
+programVersion =
+  (concat $ intersperse "." (map show $ versionBranch version)) ++ " (haskell)"
 
 defaultSpaceIdent :: Int
 defaultSpaceIdent = 3
