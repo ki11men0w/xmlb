@@ -24,6 +24,9 @@ executable xmlb
     hs-source-dirs: src
     ghc-options: -O3 -fspec-constr-count=4
     default-language: Haskell2010
+    other-modules:
+        FormatXml
+        Paths_xmlb
 
 test-suite test0
     type: exitcode-stdio-1.0
