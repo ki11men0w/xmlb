@@ -1,13 +1,14 @@
 module TestUtils where
 
-import System.Directory (createDirectoryIfMissing, copyFile, doesFileExist, getCurrentDirectory)
-import System.FilePath ((</>), (<.>), takeFileName, takeDirectory, splitDirectories)
+import System.Directory (createDirectoryIfMissing, copyFile)
+import System.FilePath ((</>), (<.>), takeFileName)
 import System.IO (withBinaryFile, hGetContents, IOMode(..))
 import Control.Monad (unless, when)
 import Test.Hspec (expectationFailure)
 import System.Process (readProcessWithExitCode)
 import System.Exit (ExitCode(..))
 import Data.Char (isSpace)
+import Paths_xmlb (getDataFileName)
 
 resourceFile_invalid = "invalid.xml.bad"
 resourceFile_empty = "empty.txt"
@@ -23,16 +24,6 @@ resourceFile_enc_utf16be = "enc.utf16be.xml"
 resourceFile_enc_utf16le = "enc.utf16le.xml"
 resourceFile_enc1 = "enc1.xml"
 
-getDirPrefix :: IO (Maybe String)
-getDirPrefix = do
-  curDir <- getCurrentDirectory
-
-  let inBuildDir = (take 2 .drop 1 . reverse . splitDirectories) curDir == ["build", "dist"]
-  --(takeFileName . takeDirectory) curDir == "build" && (takeDirectory . takeDirectory) curDir == "dist"
-
-  if inBuildDir
-    then return $ Just $ ".." </> ".." </> ".."
-    else return Nothing
 
 trim :: String -> String 
 trim = dropWhile isSpace . dropWhileEnd isSpace
@@ -41,46 +32,15 @@ trim = dropWhile isSpace . dropWhileEnd isSpace
     dropWhileEnd p = foldr (\x xs -> if p x && null xs then [] else x : xs) []
 
 
-getDistDir :: IO (Maybe String)
-getDistDir = do
-  let stackCommand = "stack"
-      stackArgs = ["path", "--dist-dir"]
-      stackInput = ""
-  (exitCode, dir', err') <- readProcessWithExitCode stackCommand stackArgs stackInput
-  let (dir, err) = (trim dir', trim err')
-  return $
-         if exitCode /= ExitSuccess
-           then Nothing
-           else if err /= ""
-                  then Nothing
-                  else if dir == ""
-                         then Nothing
-                         else Just dir
-
-getDirWithResources :: IO FilePath
-getDirWithResources = do
-  let defaultResult = "test" </> "resources"
-  prefix <- getDirPrefix
-  return $ maybe defaultResult (</> defaultResult) prefix
-
 getDirWithTempData :: IO FilePath
 getDirWithTempData = do
-  let defaultResult = "dist" </> "test" </> "tmp"
-
-  prefix <- getDirPrefix
-  let dir = maybe defaultResult (</> defaultResult) prefix
-
+  let dir = "tests-data-tmp"
   createDirectoryIfMissing True dir
   return dir
 
 findOriginalFile :: FilePath -> IO FilePath
 findOriginalFile fileName = do
-  exists <- doesFileExist fileName
-  if exists
-    then return fileName
-    else if takeFileName fileName == fileName
-           then getDirWithResources >>= return . (</> fileName)
-           else return fileName
+  getDataFileName $ "test" </> "resources" </> fileName
 
 type Action = FilePath -> FilePath -> IO ()
 

@@ -1,5 +1,5 @@
 name: xmlb
-version: 1.0.0
+version: 1.0.0.1
 cabal-version: >=1.10
 build-type: Simple
 license: BSD3
@@ -12,7 +12,21 @@ homepage: http://github.com/killmen0w/xmlb#readme
 category: XML
 author: Maksim Golubev
 tested-with: GHC ==7.10.3
-data-dir: ""
+data-files:
+           test/resources/empty.txt
+         , test/resources/enc.xml
+         , test/resources/enc.utf16.withBOM.woEnc.xml
+         , test/resources/enc.utf16be.xml
+         , test/resources/enc.utf16le.xml
+         , test/resources/enc1.xml
+         , test/resources/garbage.bin
+         , test/resources/invalid.xml.bad
+         , test/resources/test.spaces.2.xml
+         , test/resources/test.spaces.xml
+         , test/resources/test.strip.xml
+         , test/resources/test.xml
+extra-tmp-files:
+        tests-data-tmp
  
 executable xmlb
     build-depends: HaXml ==1.22.5, base >=4.3.1.0,
@@ -45,6 +59,7 @@ test-suite test0
     other-modules:
                   TestUtils
                 , XmlbSpec
+                , Paths_xmlb
 
 test-suite test1
     type: exitcode-stdio-1.0
@@ -63,6 +78,7 @@ test-suite test1
     other-modules:
                   TestUtils
                 , XmlbSpec
+                , Paths_xmlb
 
 source-repository head
   type:     git

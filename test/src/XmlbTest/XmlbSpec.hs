@@ -13,6 +13,7 @@ import Data.List (isInfixOf, isPrefixOf)
 import System.Directory (copyFile)
 import Data.Maybe (fromMaybe)
 import Control.Monad (unless)
+import Paths_xmlb (getBinDir)
 
 
 data ExitFailureException = ExitFailureException {command:: String, exitCode :: Int, message :: String} deriving (Typeable)
@@ -26,12 +27,7 @@ instance Show PreconditionsDoesNotMatch where
   show (PreconditionsDoesNotMatch msg) = show msg
 
 getExeFileName :: IO String
-getExeFileName = do
-  distDir <- getDistDir
-  let defaultResult = fromMaybe "dist" distDir </> "build" </> "xmlb" </> "xmlb"
-
-  prefix <- getDirPrefix
-  return $ maybe defaultResult (</> defaultResult) prefix
+getExeFileName = getBinDir >>= return . (</> "xmlb")
 
 stderrFileName = "stderr.txt"
 
