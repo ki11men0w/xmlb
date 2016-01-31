@@ -42,6 +42,9 @@ test-suite test0
      ,HUnit
      ,filepath
      ,process >= 1.1.0
+    other-modules:
+                  TestUtils
+                , XmlbSpec
 
 test-suite test1
     type: exitcode-stdio-1.0
@@ -57,6 +60,9 @@ test-suite test1
      ,HUnit
      ,filepath
      ,process >= 1.1.0
+    other-modules:
+                  TestUtils
+                , XmlbSpec
 
 source-repository head
   type:     git
