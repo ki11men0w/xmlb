@@ -1,6 +1,7 @@
 module TestUtils where
 
-import System.Directory (createDirectoryIfMissing, copyFile)
+import System.Directory (createDirectoryIfMissing, createDirectory, copyFile)
+import System.IO.Error (tryIOError)
 import System.FilePath ((</>), (<.>), takeFileName)
 import System.IO (withBinaryFile, hGetContents, IOMode(..))
 import Control.Monad (unless, when)
@@ -35,7 +36,9 @@ trim = dropWhile isSpace . dropWhileEnd isSpace
 getDirWithTempData :: IO FilePath
 getDirWithTempData = do
   let dir = "tests-data-tmp"
-  createDirectoryIfMissing True dir
+  -- something wrong with createDirectoryIfMissing on Windows so use plain createDirectory
+  --createDirectoryIfMissing True dir
+  tryIOError $ createDirectory dir
   return dir
 
 findOriginalFile :: FilePath -> IO FilePath
