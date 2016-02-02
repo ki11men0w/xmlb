@@ -187,32 +187,53 @@ spec = do
 
 specOnlyOnTerminal :: Spec
 specOnlyOnTerminal = do
-  describe "Running xmlb executable with terminal device as STDIN" $ do
+  stdin_isatty <- runIO $ hIsTerminalDevice stdin
+  stdout_isatty <- runIO $ hIsTerminalDevice stdout
 
-    context "Exits with failure" $ do
-      it "must not mix file(s) and stdin as data source" $ do
-        assumeConversionIncorrect resourceFile_test resourceFile_garbage (action ["someFileName"]) 
-          `shouldThrow` exitFailureExceptionContaining "As a data source, you must specify either STDIN or file(s) listed in the command line, but not both."
+  describe "Running xmlb executable with STDOUT as terminal device" $ do
 
-      it "with bad command line argument --qq" $ do
-        action'' ["--qq"] `shouldThrow` exitFailureExceptionWith "Unknown flag: --qq"
-     
-      it "with several bad command line arguments must tell about first" $ do
-        action'' ["--zz", "--qq", "--aa"] `shouldThrow` exitFailureExceptionWith "Unknown flag: --zz"
-
-      it "if no source data specified then must tell about it" $ do
-        action''CheckSTDINIsTerminal [] `shouldThrow` exitFailureExceptionContaining "No input data.\nUse '--help' command line flag to see the usage case."
-
+    if not stdout_isatty
+      then
+        it "Skiped all tests" $ pendingWith "STDOUT must be a terminal device for running this test suite"
+      else do 
+        context "Exits with failure" $ do
+          it "must not mix file(s) and stdin as data source" $ do
+            assumeConversionIncorrect resourceFile_test resourceFile_garbage (action ["someFileName"]) 
+              `shouldThrow` exitFailureExceptionContaining "As a data source, you must specify either STDIN or file(s) listed in the command line, but not both."
     
-    context "Converting xml data" $ do
+          it "with bad command line argument --qq" $ do
+            action'' ["--qq"] `shouldThrow` exitFailureExceptionWith "Unknown flag: --qq"
+         
+          it "with several bad command line arguments must tell about first" $ do
+            action'' ["--zz", "--qq", "--aa"] `shouldThrow` exitFailureExceptionWith "Unknown flag: --zz"
+    
+        
+        context "Converting xml data" $ do
+    
+          context "Converting inplace" $ do
+            it "if can not convert original file then must not touch it" $ do
+              (assumeConversionCorrect resourceFile_invalid resourceFile_invalid $ actionConvertInPlace []) `shouldThrow` exitFailureException
+    
+            it "must not touch source file if unknown option specified" $ do
+              (assumeConversionCorrect resourceFile_test resourceFile_test $ actionConvertInPlace ["--qq"]) `shouldThrow` exitFailureException
 
-      context "Converting inplace" $ do
-        it "with --spaces" $ do
-          assumeConversionCorrect resourceFile_test resourceFile_test_spaces $
-            actionConvertInPlace'CheckSTDINIsTerminal ["--spaces"]
 
-        it "if can not convert original file then must not touch it" $ do
-          (assumeConversionCorrect resourceFile_invalid resourceFile_invalid $ actionConvertInPlace []) `shouldThrow` exitFailureException
+  describe "Running xmlb executable with STDIN and STDOUT as terminal devices" $ do
 
-        it "must not touch source file if unknown option specified" $ do
-          (assumeConversionCorrect resourceFile_test resourceFile_test $ actionConvertInPlace ["--qq"]) `shouldThrow` exitFailureException
+    if not (stdin_isatty && stdout_isatty)
+      then
+        it "Skiped all tests" $ pendingWith "STDIN and STDOUT must be terminal devices for running this test suite"
+      else do 
+        context "Exits with failure" $ do
+          it "if no source data specified then must tell about it" $ do
+            action''CheckSTDINIsTerminal [] `shouldThrow` exitFailureExceptionContaining "No input data.\nUse '--help' command line flag to see the usage case."
+  
+      
+        context "Converting xml data" $ do
+  
+          context "Converting inplace" $ do
+  
+            it "with --spaces" $ do
+              assumeConversionCorrect resourceFile_test resourceFile_test_spaces $
+                actionConvertInPlace'CheckSTDINIsTerminal ["--spaces"]
+
