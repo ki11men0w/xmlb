@@ -3,7 +3,7 @@ module XmlbSpec where
 
 import Test.Hspec
 import TestUtils
-import System.IO (hClose, hGetContents, withBinaryFile, IOMode(..), stdout, hIsTerminalDevice, stdin)
+import System.IO (hClose, hGetContents, withBinaryFile, IOMode(..), stdout)
 import System.FilePath ((</>), (<.>))
 import System.Process (proc, shell, createProcess, waitForProcess, CreateProcess(..), StdStream(..), showCommandForUser)
 import System.Exit (ExitCode(..))
@@ -12,7 +12,6 @@ import Data.Typeable (Typeable())
 import Data.List (isInfixOf, isPrefixOf)
 import System.Directory (copyFile)
 import Data.Maybe (fromMaybe)
-import Control.Monad (unless)
 import Paths_xmlb (getBinDir)
 
 
@@ -20,11 +19,6 @@ data ExitFailureException = ExitFailureException {command:: String, exitCode :: 
 instance Exception ExitFailureException
 instance Show ExitFailureException where
   show (ExitFailureException command exitCode message) = "Command (" ++ command ++ ") terminated with exitCode=" ++show exitCode ++ ": " ++ trim message
-
-data PreconditionsDoesNotMatch = PreconditionsDoesNotMatch String
-instance Exception PreconditionsDoesNotMatch
-instance Show PreconditionsDoesNotMatch where
-  show (PreconditionsDoesNotMatch msg) = show msg
 
 getExeFileName :: IO String
 getExeFileName = getBinDir >>= return . (</> "xmlb")
@@ -74,11 +68,6 @@ action' options inH outH = do
 action'' :: CommandArgs -> IO ()
 action'' options = action' options Inherit Inherit
 
-action''CheckSTDINIsTerminal :: CommandArgs -> IO ()
-action''CheckSTDINIsTerminal options = do
-  stdin_isatty <- hIsTerminalDevice stdin
-  unless stdin_isatty $ throw $ PreconditionsDoesNotMatch "STDIN must be a terminal to run this test"
-  action'' options
 
 actionConvertInPlace :: CommandArgs -> FilePath -> FilePath -> IO ()
 actionConvertInPlace options inFileName outFileName = do
@@ -103,11 +92,6 @@ actionConvertInPlace options inFileName outFileName = do
     ExitFailure i -> do
       throw $ ExitFailureException command i errMsg
   
-actionConvertInPlace'CheckSTDINIsTerminal:: CommandArgs -> FilePath -> FilePath -> IO ()
-actionConvertInPlace'CheckSTDINIsTerminal options inFileName outFileName = do
-  stdin_isatty <- hIsTerminalDevice stdin
-  unless stdin_isatty $ throw $ PreconditionsDoesNotMatch "STDIN must be a terminal to run this test"
-  actionConvertInPlace options inFileName outFileName
   
 
 spec :: Spec
@@ -201,7 +185,7 @@ specOnlyOnTerminal = do
         action'' ["--zz", "--qq", "--aa"] `shouldThrow` exitFailureExceptionWith "Unknown flag: --zz"
 
       it "if no source data specified then must tell about it" $ do
-        action''CheckSTDINIsTerminal [] `shouldThrow` exitFailureExceptionContaining "No input data.\nUse '--help' command line flag to see the usage case."
+        action'' [] `shouldThrow` exitFailureExceptionContaining "No input data.\nUse '--help' command line flag to see the usage case."
 
     
     context "Converting xml data" $ do
@@ -209,7 +193,7 @@ specOnlyOnTerminal = do
       context "Converting inplace" $ do
         it "with --spaces" $ do
           assumeConversionCorrect resourceFile_test resourceFile_test_spaces $
-            actionConvertInPlace'CheckSTDINIsTerminal ["--spaces"]
+            actionConvertInPlace ["--spaces"]
 
         it "if can not convert original file then must not touch it" $ do
           (assumeConversionCorrect resourceFile_invalid resourceFile_invalid $ actionConvertInPlace []) `shouldThrow` exitFailureException
