@@ -3,7 +3,7 @@ module XmlbSpec where
 
 import Test.Hspec
 import TestUtils
-import System.IO (hClose, hGetContents, withBinaryFile, IOMode(..), stdout)
+import System.IO (hClose, hGetContents, withBinaryFile, IOMode(..), hIsTerminalDevice, stdin, stdout)
 import System.FilePath ((</>), (<.>))
 import System.Process (proc, shell, createProcess, waitForProcess, CreateProcess(..), StdStream(..), showCommandForUser)
 import System.Exit (ExitCode(..))
@@ -171,32 +171,52 @@ spec = do
 
 specOnlyOnTerminal :: Spec
 specOnlyOnTerminal = do
-  describe "Running xmlb executable with terminal device as STDIN" $ do
+  stdin_isatty  <- runIO $ hIsTerminalDevice stdin
+  stdout_isatty <- runIO $ hIsTerminalDevice stdout
 
+  let
+    with_stdin_as_terminal  = \action -> do
+      if stdin_isatty
+        then action
+        else pendingWith "STDIN must be terminal device for running this test"
+    with_stdout_as_terminal = \action -> do
+      if stdout_isatty
+        then action
+        else pendingWith "STDOUT must be terminal device for running this test"
+
+  describe "Running xmlb executable with STDIN/STDOUT as terminal device" $ do
     context "Exits with failure" $ do
-      it "must not mix file(s) and stdin as data source" $ do
+      it "must not mix file(s) and stdin as data source" $
+        with_stdout_as_terminal $
         assumeConversionIncorrect resourceFile_test resourceFile_garbage (action ["someFileName"]) 
           `shouldThrow` exitFailureExceptionContaining "As a data source, you must specify either STDIN or file(s) listed in the command line, but not both."
 
-      it "with bad command line argument --qq" $ do
+      it "with bad command line argument --qq" $
+        with_stdout_as_terminal $
         action'' ["--qq"] `shouldThrow` exitFailureExceptionWith "Unknown flag: --qq"
      
-      it "with several bad command line arguments must tell about first" $ do
+      it "with several bad command line arguments must tell about first" $
+        with_stdout_as_terminal $
         action'' ["--zz", "--qq", "--aa"] `shouldThrow` exitFailureExceptionWith "Unknown flag: --zz"
 
-      it "if no source data specified then must tell about it" $ do
+      it "if no source data specified then must tell about it" $
+        with_stdout_as_terminal $
+        with_stdin_as_terminal $
         action'' [] `shouldThrow` exitFailureExceptionContaining "No input data.\nUse '--help' command line flag to see the usage case."
 
     
     context "Converting xml data" $ do
 
       context "Converting inplace" $ do
-        it "with --spaces" $ do
+        it "with --spaces" $
+          (with_stdout_as_terminal . with_stdin_as_terminal) $
           assumeConversionCorrect resourceFile_test resourceFile_test_spaces $
             actionConvertInPlace ["--spaces"]
 
-        it "if can not convert original file then must not touch it" $ do
+        it "if can not convert original file then must not touch it" $
+          with_stdout_as_terminal $
           (assumeConversionCorrect resourceFile_invalid resourceFile_invalid $ actionConvertInPlace []) `shouldThrow` exitFailureException
 
-        it "must not touch source file if unknown option specified" $ do
+        it "must not touch source file if unknown option specified" $
+          with_stdout_as_terminal $
           (assumeConversionCorrect resourceFile_test resourceFile_test $ actionConvertInPlace ["--qq"]) `shouldThrow` exitFailureException
