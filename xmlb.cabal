@@ -26,7 +26,7 @@ data-files:
          , test/resources/test.strip.xml
          , test/resources/test.xml
 extra-tmp-files:
-        tests-data-tmp
+        tests-data.tmp
  
 executable xmlb
     build-depends: HaXml ==1.22.5, base >=4.3.1.0,
