@@ -314,6 +314,7 @@ escapeCharacterData :: String -> String
 escapeCharacterData = concatMap $ \c ->
   case c of
     '<' -> "&lt;"
+    '>' -> "&gt;"
     '&' -> "&amp;"
     c'   -> [c']
 
