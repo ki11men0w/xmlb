@@ -18,7 +18,7 @@ import Control.Monad.Reader
 
 import Data.Char
 import Data.Maybe
-import Text.Regex.Posix
+import Text.Regex.TDFA
 
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as C8
@@ -217,7 +217,7 @@ getXmlEncoding inH = do
           | BS.length already_read_str > 1000 -> return (Nothing, already_read_str)
           | True -> do new_str <- BS.hGet inH howMatchRead >>= \c -> return $ already_read_str `BS.append` c
                        let test_str = dropWhile isSpace $ C8.unpack new_str
-                           (_, _, _, enc) = test_str =~ "<\\?xml[ \t](.*[[:<:]]encoding=\"([^\"]+)\")?.*\\?>" :: (String, String, String, [String])
+                           (_, _, _, enc) = test_str =~ "<\\?xml[ \t](.*\\bencoding=\"([^\"]+)\")?.*\\?>" :: (String, String, String, [String])
                        case enc of
                          _:"":_     -> return (Nothing, new_str)
                          _:e:_      -> return (Just e, new_str)
@@ -498,7 +498,7 @@ ensureEndsWithSpace s =
     then s
     else s ++ " "
 
-encodingPattern = "[[:<:]]encoding=\"[^\"]+\""
+encodingPattern = "\\bencoding=\"[^\"]+\""
 
 printElemBeauty :: SaxElement -> Formatting ()
 printElemBeauty e = do
