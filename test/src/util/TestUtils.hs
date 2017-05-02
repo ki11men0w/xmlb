@@ -41,7 +41,7 @@ trim = dropWhile isSpace . dropWhileEnd isSpace
 
 getDirWithTempData :: IO FilePath
 getDirWithTempData = do
-  let dir = "tests-data.tmp"
+  let dir = ".tests-data.tmp"
   -- something wrong with createDirectoryIfMissing on Windows so use plain createDirectory
   --createDirectoryIfMissing True dir
   tryIOError $ createDirectory dir
