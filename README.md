@@ -1,7 +1,7 @@
 [![Build Status](https://travis-ci.org/ki11men0w/xmlb.svg?branch=master)](https://travis-ci.org/ki11men0w/xmlb)
 
 # xmlb
-###XML beautifier.
+### XML beautifier
 Command line utility that indent nested tags in XML making it human readable.
 You can also perform the opposite effect: to remove all non-essential whitespace from XML.
 
