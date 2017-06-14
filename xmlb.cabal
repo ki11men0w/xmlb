@@ -11,7 +11,6 @@ description: Please see README.md
 homepage: http://github.com/killmen0w/xmlb#readme
 category: XML
 author: Maksim Golubev
-tested-with: GHC ==7.10.3
 data-files:
            test/resources/empty.txt
          , test/resources/enc.xml
