@@ -506,10 +506,16 @@ printElemBeauty e = do
                                                   setLastElem LastElemXmlHeader
       where
         changeEncodingInProcessingInstruction (SaxProcessingInstruction (target, value)) encodingName =
-          let (pre, _, post) = value =~ "[ \t]+encoding=\"[^\"]+\"" :: (String, String, String)
+          let (pre, _, post) = value =~ "[ \t]*\\bencoding=\"[^\"]+\"" :: (String, String, String)
+              ensureEndsWithSpace :: String -> String
+              ensureEndsWithSpace [] = []
+              ensureEndsWithSpace x =
+                if isSpace (last x)
+                  then x
+                  else x ++ " "
           in SaxProcessingInstruction (target, case mode cfg of
                                           ModeLegacy -> "version=\"1.0\" encoding=\"" ++ encodingName ++ "\""
-                                          _ -> pre ++ " encoding=\"" ++ encodingName ++ "\"" ++ post)
+                                          _ -> ensureEndsWithSpace pre ++ "encoding=\"" ++ encodingName ++ "\"" ++ post)
   
         
     x@(SaxProcessingInstruction _) ->  when (mode cfg /= ModeLegacy) $ do

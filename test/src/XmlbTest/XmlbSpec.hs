@@ -137,6 +137,11 @@ spec = do
           assumeConversionCorrect resourceFile_test_strip resourceFile_test $
             action []
 
+    context ("Checking xml header rendering") $ do
+      it ("with file " ++ resourceFile_header_no_attr) $
+        assumeConversionCorrect resourceFile_header_no_attr resourceFile_header $
+          action []
+
 
     context "Encoding conversions" $ do
       it "without specifying input or output encodings original encoding must be used and printed as is" $ 

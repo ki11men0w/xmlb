@@ -25,6 +25,8 @@ resourceFile_enc_utf16be = "enc.utf16be.xml"
 resourceFile_enc_utf16le = "enc.utf16le.xml"
 resourceFile_enc1 = "enc1.xml"
 
+resourceFile_header = "header.xml"
+resourceFile_header_no_attr = "header.no.attr.xml"
 
 trim :: String -> String 
 trim = dropWhile isSpace . dropWhileEnd isSpace
