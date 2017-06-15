@@ -49,7 +49,7 @@ executable xmlb
 
 test-suite test0
     type: exitcode-stdio-1.0
-    hs-source-dirs: test/src/util, test/src/XmlbTest
+    hs-source-dirs: test/src, test/src/util, test/src/XmlbTest
     main-is: Spec.hs
     default-language: Haskell2010
     build-depends:
@@ -61,13 +61,13 @@ test-suite test0
      ,process >= 1.1.0
     other-modules:
                   TestUtils
-                , XmlbSpec
+                , XmlbTest.XmlbSpec
                 , Paths_xmlb
 
 test-suite test1
     type: exitcode-stdio-1.0
-    hs-source-dirs: test/src/util, test/src/XmlbTest
-    main-is: OnTerminalMain.hs
+    hs-source-dirs: test/src, test/src/util, test/src/XmlbTest
+    main-is: SpecOnTerminal.hs
     default-language: Haskell2010
     build-depends:
       base
@@ -78,7 +78,7 @@ test-suite test1
      ,process >= 1.1.0
     other-modules:
                   TestUtils
-                , XmlbSpec
+                , XmlbTest.XmlbSpec
                 , Paths_xmlb
 
 source-repository head

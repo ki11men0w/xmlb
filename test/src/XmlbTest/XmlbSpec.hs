@@ -1,5 +1,5 @@
 {-# LANGUAGE DeriveDataTypeable #-}
-module XmlbSpec where
+module XmlbTest.XmlbSpec where
 
 import Test.Hspec
 import TestUtils

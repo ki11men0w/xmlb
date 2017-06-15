@@ -1,6 +1,6 @@
 module Main where
 
-import XmlbSpec (specOnlyOnTerminal)
+import XmlbTest.XmlbSpec (specOnlyOnTerminal)
 import Test.Hspec (hspec)
 
 main :: IO ()
