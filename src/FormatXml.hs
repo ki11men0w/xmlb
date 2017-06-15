@@ -217,7 +217,7 @@ getXmlEncoding inH = do
           | BS.length already_read_str > 1000 -> return (Nothing, already_read_str)
           | True -> do new_str <- BS.hGet inH howMatchRead >>= \c -> return $ already_read_str `BS.append` c
                        let test_str = dropWhile isSpace $ C8.unpack new_str
-                           (_, _, _, enc) = test_str =~ "<\\?xml[ \t](.*encoding=\"([^\"]+)\")?.*\\?>" :: (String, String, String, [String])
+                           (_, _, _, enc) = test_str =~ "<\\?xml[ \t](.*[[:<:]]encoding=\"([^\"]+)\")?.*\\?>" :: (String, String, String, [String])
                        case enc of
                          _:"":_     -> return (Nothing, new_str)
                          _:e:_      -> return (Just e, new_str)
@@ -491,6 +491,15 @@ printTreeBeauty cfg st =
       _ -> printTreeBeauty cfg st{elems=ex}
 
 
+ensureEndsWithSpace :: String -> String
+ensureEndsWithSpace [] = []
+ensureEndsWithSpace s =
+  if isSpace (last s)
+    then s
+    else s ++ " "
+
+encodingPattern = "[[:<:]]encoding=\"[^\"]+\""
+
 printElemBeauty :: SaxElement -> Formatting ()
 printElemBeauty e = do
   cfg <- ask
@@ -506,13 +515,7 @@ printElemBeauty e = do
                                                   setLastElem LastElemXmlHeader
       where
         changeEncodingInProcessingInstruction (SaxProcessingInstruction (target, value)) encodingName =
-          let (pre, _, post) = value =~ "[ \t]*\\bencoding=\"[^\"]+\"" :: (String, String, String)
-              ensureEndsWithSpace :: String -> String
-              ensureEndsWithSpace [] = []
-              ensureEndsWithSpace x =
-                if isSpace (last x)
-                  then x
-                  else x ++ " "
+          let (pre, _, post) = value =~ encodingPattern :: (String, String, String)
           in SaxProcessingInstruction (target, case mode cfg of
                                           ModeLegacy -> "version=\"1.0\" encoding=\"" ++ encodingName ++ "\""
                                           _ -> ensureEndsWithSpace pre ++ "encoding=\"" ++ encodingName ++ "\"" ++ post)
@@ -634,8 +637,8 @@ printElemStrip e = do
                                                   setLastElem LastElemXmlHeader
       where
         changeEncodingInProcessingInstruction (SaxProcessingInstruction (target, value)) encodingName =
-          let (pre, _, post) =  value =~ "[ \t]+encoding=\"[^\"]+\"" :: (String, String, String)
-          in SaxProcessingInstruction (target, pre ++ " encoding=\"" ++ encodingName ++ "\"" ++ post)
+          let (pre, _, post) =  value =~ encodingPattern :: (String, String, String)
+          in SaxProcessingInstruction (target, ensureEndsWithSpace pre ++ "encoding=\"" ++ encodingName ++ "\"" ++ post)
   
         
     x@(SaxProcessingInstruction _) -> do savePostponedCharData LastElemProcessingInstruction

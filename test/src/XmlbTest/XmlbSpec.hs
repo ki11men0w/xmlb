@@ -138,9 +138,20 @@ spec = do
             action []
 
     context ("Checking xml header rendering") $ do
-      it ("with file " ++ resourceFile_header_no_attr) $
-        assumeConversionCorrect resourceFile_header_no_attr resourceFile_header $
-          action []
+      context("with file " ++ resourceFile_header_no_attr) $ do
+        it ("without strip") $
+          assumeConversionCorrect resourceFile_header_no_attr resourceFile_header $
+            action []
+        it ("with strip") $
+          assumeConversionCorrect resourceFile_header_no_attr resourceFile_header_strip $
+            action ["--strip"]
+      context("with file " ++ resourceFile_header_bencoding) $ do
+        it ("without strip") $
+          assumeConversionCorrect resourceFile_header_bencoding resourceFile_header_bencoding_beauty $
+            action []
+        it ("with strip") $
+          assumeConversionCorrect resourceFile_header_bencoding resourceFile_header_bencoding_strip $
+            action ["--strip"]
 
 
     context "Encoding conversions" $ do

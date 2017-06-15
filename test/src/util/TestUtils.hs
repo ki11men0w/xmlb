@@ -27,6 +27,10 @@ resourceFile_enc1 = "enc1.xml"
 
 resourceFile_header = "header.xml"
 resourceFile_header_no_attr = "header.no.attr.xml"
+resourceFile_header_strip = "header.strip.xml"
+resourceFile_header_bencoding = "header.bencoding.xml"
+resourceFile_header_bencoding_beauty = "header.bencoding.beauty.xml"
+resourceFile_header_bencoding_strip = "header.bencoding.strip.xml"
 
 trim :: String -> String 
 trim = dropWhile isSpace . dropWhileEnd isSpace

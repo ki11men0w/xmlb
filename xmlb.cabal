@@ -21,6 +21,10 @@ data-files:
          , test/resources/garbage.bin
          , test/resources/header.xml
          , test/resources/header.no.attr.xml
+         , test/resources/header.strip.xml
+         , test/resources/header.bencoding.xml
+         , test/resources/header.bencoding.beauty.xml
+         , test/resources/header.bencoding.strip.xml
          , test/resources/invalid.xml.bad
          , test/resources/test.spaces.2.xml
          , test/resources/test.spaces.xml
