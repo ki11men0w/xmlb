@@ -26,7 +26,7 @@ import qualified Data.ByteString.Char8 as C8
 import qualified Data.Text as TXT
 import Data.Text.Encoding
 
-import Control.Parallel.Strategies (rdeepseq, withStrategy)
+import Control.DeepSeq (($!!))
 
 type EncodingName = String
 
@@ -77,8 +77,9 @@ processFile inH inFileName outH inputEncoding outputEncoding' mode' = do
                          hSetEncoding tmpH inputEncoding'
                          -- Все эти strict* для того что-бы можно было закрыть
                          -- временный файл сразуже
-                         !x <- withStrategy rdeepseq `liftM` hGetContents tmpH
-                         return x
+                         -- !x <- withStrategy rdeepseq `liftM` hGetContents tmpH
+                         x <- hGetContents tmpH
+                         return $!! x
                     
           hSetEncoding inH inputEncoding'
           inpt''' <- hGetContents inH
