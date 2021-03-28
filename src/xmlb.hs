@@ -80,22 +80,22 @@ checkOptions :: Flags -> IO ()
 checkOptions opts = do
   hIsTerminalDevice stdin >>= \t ->
     when (not t && (not $ null $ inFileNames opts)) $
-      error "As a data source, you must specify either STDIN or file(s) listed in the command line, but not both."
+      errorWithoutStackTrace "As a data source, you must specify either STDIN or file(s) listed in the command line, but not both."
   
   hIsTerminalDevice stdout >>= \t ->
     when (backup opts && not t) $
-      error "--backup option makes sence only when STDOUT is not redirected."
+      errorWithoutStackTrace "`--backup` option makes sence only when STDOUT is not redirected."
   
   when (backup opts && null (inFileNames opts)) $
-    error "--backup option makes sence only when data source is a plain file(s) listed in the command line, not STDIN."
+    errorWithoutStackTrace "`--backup` option makes sence only when data source is a plain file(s) listed in the command line, not STDIN."
   when (strip opts && (isJust . spaces) opts) $
-    error "--strip and --spaces options are mutually exclusive."
+    errorWithoutStackTrace "`--strip` and `--spaces` options are mutually exclusive."
   when (legacy opts && (isJust . spaces) opts) $
-    error "--legacy and --spaces options are mutually exclusive."
+    errorWithoutStackTrace "`--legacy` and `--spaces` options are mutually exclusive."
   when (legacy opts && strip opts) $
-    error "--legacy and --strip options are mutually exclusive."
+    errorWithoutStackTrace "`--legacy` and `--strip` options are mutually exclusive."
   when (legacy opts && (isJust . input_encoding) opts) $
-    error "--legacy and --input-encoding options are mutually exclusive."
+    errorWithoutStackTrace "`--legacy` and `--input-encoding` options are mutually exclusive."
 
   
 
@@ -168,7 +168,7 @@ main = do
   
   stdin_isatty <- hIsTerminalDevice stdin
   let inFileSources = case (stdin_isatty, inFileNames opts) of
-        (True, []) -> error "No input data.\nUse '--help' command line flag to see the usage case."
+        (True, []) -> errorWithoutStackTrace "No input data.\nUse `--help` command line flag to see the usage case."
         (_, [])    -> ["-"]
         _          -> globed_inFileNames
 

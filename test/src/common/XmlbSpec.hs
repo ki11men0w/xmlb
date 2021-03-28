@@ -218,7 +218,7 @@ specOnlyOnTerminal = do
       it "if no source data specified then must tell about it" $
         with_stdout_as_terminal $
         with_stdin_as_terminal $
-        action'' [] `shouldThrow` exitFailureExceptionContaining "No input data.\nUse '--help' command line flag to see the usage case."
+        action'' [] `shouldThrow` exitFailureExceptionContaining "No input data.\nUse `--help` command line flag to see the usage case."
 
     
     context "Converting xml data" $ do
