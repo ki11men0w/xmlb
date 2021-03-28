@@ -35,7 +35,7 @@ eol = "\r\n"
 
 data FormatMode = ModeBeautify -- ^ Форматирование "ёлочкой"
                   {
-                    identString :: EncodingName -- ^ Строка, которая будет использоваться для отступов.
+                    indentString :: EncodingName -- ^ Строка, которая будет использоваться для отступов.
                   } 
                 | ModeStrip -- ^ Удаление всех незначащих пробельных символов
                 | ModeLegacy -- ^ Режим совместимости со старой утилитой на питоне
@@ -110,9 +110,9 @@ processFile inH inFileName outH inputEncoding outputEncoding' mode' = do
                                                     ModeLegacy -> outputEncodingName
                                                     _          -> getEncodingName4XmlHeader outputEncodingName,
                                  mode = mode'}
-           s = FormattingState {identLevel=0, elems=elms,
+           s = FormattingState {indentLevel=0, elems=elms,
                                 lastElem = LastElemNothing, penultElem = LastElemNothing,
-                                postponedCharData = [], skippedIdent = SkippedNothing,
+                                postponedCharData = [], skippedIndent = SkippedNothing,
                                 result = ""}
            !x = case mode' of 
              ModeStrip      -> printTreeStrip c s
@@ -287,14 +287,14 @@ data FormattingConfig = FormattingConfig { outputEncoding :: String,
                                          }
 
 type SkippedCountType = Integer
-data SkippedIdent = SkippedNothing | SkippingJustEnded | SkippedCount SkippedCountType
+data SkippedIndent = SkippedNothing | SkippingJustEnded | SkippedCount SkippedCountType
                   deriving (Eq)
-data FormattingState = FormattingState { identLevel :: Int,
+data FormattingState = FormattingState { indentLevel :: Int,
                                          elems :: [SaxElementWrapper],
                                          lastElem :: LastElem,
                                          penultElem :: LastElem,
                                          postponedCharData :: String,
-                                         skippedIdent :: SkippedIdent,
+                                         skippedIndent :: SkippedIndent,
                                          result :: String
                                        }
 
@@ -397,46 +397,46 @@ getLastElem = do
   return $ lastElem st
 
 
-identMore :: Formatting ()
-identMore = do
+indentMore :: Formatting ()
+indentMore = do
   x <- get
-  put $ x { identLevel = identLevel x +1 }
+  put $ x { indentLevel = indentLevel x +1 }
 
-identLess :: Formatting ()
-identLess = do
+indentLess :: Formatting ()
+indentLess = do
   x <- get
-  when (identLevel x > 0) $ put $ x { identLevel = identLevel x -1 }
+  when (indentLevel x > 0) $ put $ x { indentLevel = indentLevel x -1 }
 
-skipIdent :: Formatting ()
-skipIdent = do
+skipIndent :: Formatting ()
+skipIndent = do
   st <- get
-  case skippedIdent st of
-    SkippedCount cnt -> put $ st {skippedIdent = SkippedCount (cnt + 1)}
-    _ -> put $ st {skippedIdent = SkippedCount 1}
+  case skippedIndent st of
+    SkippedCount cnt -> put $ st {skippedIndent = SkippedCount (cnt + 1)}
+    _ -> put $ st {skippedIndent = SkippedCount 1}
   
-skipIdentSimply :: Formatting ()
-skipIdentSimply = do
+skipIndentSimply :: Formatting ()
+skipIndentSimply = do
   st <- get
-  case skippedIdent st of
-    SkippedNothing -> put $ st {skippedIdent = SkippingJustEnded}
+  case skippedIndent st of
+    SkippedNothing -> put $ st {skippedIndent = SkippingJustEnded}
     _ -> return ()
 
-unskipIdent :: Formatting ()
-unskipIdent = do
+unskipIndent :: Formatting ()
+unskipIndent = do
   st <- get
-  case skippedIdent st of
+  case skippedIndent st of
     SkippedNothing -> return ()
     SkippingJustEnded ->
-      put $ st {skippedIdent = SkippedNothing}
+      put $ st {skippedIndent = SkippedNothing}
     SkippedCount 1 ->
-      put $ st {skippedIdent = SkippingJustEnded}
+      put $ st {skippedIndent = SkippingJustEnded}
     SkippedCount cnt ->
-      put $ st {skippedIdent = SkippedCount (cnt - 1)}
+      put $ st {skippedIndent = SkippedCount (cnt - 1)}
 
-getSkippedIdent :: Formatting SkippedIdent
-getSkippedIdent = do
+getSkippedIndent :: Formatting SkippedIndent
+getSkippedIndent = do
   st <- get
-  return $ skippedIdent st
+  return $ skippedIndent st
   
 
 putPostponedCharData :: String  -> Formatting ()
@@ -450,11 +450,11 @@ savePostponedCharData next = do
   st <- get
   let prev = lastElem st
       postponedCharData' = postponedCharData st
-      skippedIdent' = skippedIdent st
+      skippedIndent' = skippedIndent st
       toPrint = case () of
         _
           | prev == LastElemOpenTag && next == LastElemCloseTag -> postponedCharData'
-          | skippedIdent' /= SkippedNothing -> postponedCharData'
+          | skippedIndent' /= SkippedNothing -> postponedCharData'
           | prev /= LastElemChars && next /= LastElemChars -> ""
           | otherwise -> postponedCharData'
 
@@ -511,7 +511,7 @@ printElemBeauty e = do
                                                     LastElemNothing  -> return ()
                                                     _                -> print' eol
                                                   
-                                                  conditionalPrintIdent $ showElement $ changeEncodingInProcessingInstruction x $ outputEncoding cfg
+                                                  conditionalPrintIndent $ showElement $ changeEncodingInProcessingInstruction x $ outputEncoding cfg
                                                   when (mode cfg == ModeLegacy) $ print' eol
                                                   setLastElem LastElemXmlHeader
       where
@@ -524,45 +524,45 @@ printElemBeauty e = do
         
     x@(SaxProcessingInstruction _) ->  when (mode cfg /= ModeLegacy) $ do
                                          savePostponedCharData LastElemProcessingInstruction
-                                         conditionalSkipIdentSimply
+                                         conditionalSkipIndentSimply
                                          conditionalNewLine
-                                         conditionalPrintIdent (showElement x) 
+                                         conditionalPrintIndent (showElement x)
                                          setLastElem LastElemProcessingInstruction
       
     x@(SaxComment s)        ->  when (mode cfg /= ModeLegacy) $ do
                                   savePostponedCharData LastElemComment
-                                  conditionalSkipIdentSimply
+                                  conditionalSkipIndentSimply
                                   let isEmacsInstructions s' = s' =~ " -\\*- +.+:.+ -\\*- " :: Bool
                                   lastElem' <- getLastElem
                                   case lastElem' of
                                     
                                     LastElemXmlHeader -> unless (isEmacsInstructions s) (print' eol) -- Emacs instruction must be placed on the first line of file
                                     _ -> conditionalNewLine
-                                  conditionalPrintIdent (showElement x)
+                                  conditionalPrintIndent (showElement x)
                                   setLastElem LastElemComment
     
     x@(SaxElementTag _ _)   -> do savePostponedCharData LastElemOpenTag
-                                  conditionalSkipIdentSimply
+                                  conditionalSkipIndentSimply
                                   conditionalNewLine
-                                  conditionalPrintIdent (showElement x)
+                                  conditionalPrintIndent (showElement x)
                                   setLastElem LastElemCloseTag
                                   
     x@(SaxElementOpen _ _)  -> do savePostponedCharData LastElemOpenTag
                                   conditionalNewLine
-                                  conditionalPrintIdent (showElement x)
-                                  conditionalIdentMore
+                                  conditionalPrintIndent (showElement x)
+                                  conditionalIndentMore
                                   setLastElem LastElemOpenTag
                                   
     x@(SaxElementClose _ )  -> do savePostponedCharData LastElemCloseTag
                                   
                                   lastElem' <- getLastElem
-                                  conditionalIdentLess
+                                  conditionalIndentLess
                                   case lastElem' of
                                     LastElemChars   -> return ()
                                     LastElemOpenTag -> return ()
                                     _               -> do conditionalNewLine
-                                                          conditionalPrintIdent ""
-                                  unskipIdent
+                                                          conditionalPrintIndent ""
+                                  unskipIndent
                                   print' $ showElement x
                                   setLastElem LastElemCloseTag
     
@@ -588,34 +588,34 @@ printElemBeauty e = do
   where
     conditionalNewLine = do
       lastElem' <- getLastElem
-      skippedIdent' <- getSkippedIdent
-      when (lastElem' /= LastElemChars && lastElem' /= LastElemNothing && skippedIdent' == SkippedNothing) $ print' eol
+      skippedIndent' <- getSkippedIndent
+      when (lastElem' /= LastElemChars && lastElem' /= LastElemNothing && skippedIndent' == SkippedNothing) $ print' eol
       
-    conditionalPrintIdent x = do
+    conditionalPrintIndent x = do
       lastElem' <- getLastElem
-      skippedIdent' <- getSkippedIdent
-      if lastElem' /= LastElemChars && skippedIdent' == SkippedNothing then printIdent x else print' x
+      skippedIndent' <- getSkippedIndent
+      if lastElem' /= LastElemChars && skippedIndent' == SkippedNothing then printIndent x else print' x
       where
-        printIdent :: String -> Formatting ()
-        printIdent s = do cfg <- ask
-                          st <- get
-                          let identString' = case mode cfg of
-                                              ModeBeautify i -> i
-                                              ModeLegacy -> "\t"
-                          print' $ concat (replicate (identLevel st) identString') ++ s
+        printIndent :: String -> Formatting ()
+        printIndent s = do cfg <- ask
+                           st <- get
+                           let indentString' = case mode cfg of
+                                                ModeBeautify i -> i
+                                                ModeLegacy -> "\t"
+                           print' $ concat (replicate (indentLevel st) indentString') ++ s
 
-    conditionalIdentMore = do
+    conditionalIndentMore = do
       lastElem' <- getLastElem
-      skippedIdent' <- getSkippedIdent
-      if lastElem' /= LastElemChars && skippedIdent' == SkippedNothing then identMore else skipIdent
+      skippedIndent' <- getSkippedIndent
+      if lastElem' /= LastElemChars && skippedIndent' == SkippedNothing then indentMore else skipIndent
         
-    conditionalIdentLess = do
-      skippedIdent' <- getSkippedIdent
-      when (skippedIdent' `elem` [SkippedNothing, SkippingJustEnded]) identLess
+    conditionalIndentLess = do
+      skippedIndent' <- getSkippedIndent
+      when (skippedIndent' `elem` [SkippedNothing, SkippingJustEnded]) indentLess
                             
-    conditionalSkipIdentSimply = do
+    conditionalSkipIndentSimply = do
       lastElem' <- getLastElem
-      when (lastElem' == LastElemChars) skipIdentSimply
+      when (lastElem' == LastElemChars) skipIndentSimply
 
     
 
@@ -643,27 +643,27 @@ printElemStrip e = do
   
         
     x@(SaxProcessingInstruction _) -> do savePostponedCharData LastElemProcessingInstruction
-                                         conditionalSkipIdentSimply
+                                         conditionalSkipIndentSimply
                                          print' (showElement x) 
                                          setLastElem LastElemProcessingInstruction
       
     x@(SaxComment _)        -> do savePostponedCharData LastElemComment
-                                  conditionalSkipIdentSimply
+                                  conditionalSkipIndentSimply
                                   print' (showElement x)
                                   setLastElem LastElemComment
     
     x@(SaxElementTag _ _)   -> do savePostponedCharData LastElemOpenTag
-                                  conditionalSkipIdentSimply
+                                  conditionalSkipIndentSimply
                                   print' (showElement x)
                                   setLastElem LastElemCloseTag
                                   
     x@(SaxElementOpen _ _)  -> do savePostponedCharData LastElemOpenTag
                                   print' (showElement x)
-                                  conditionalIdentMore
+                                  conditionalIndentMore
                                   setLastElem LastElemOpenTag
                                   
     x@(SaxElementClose _ )  -> do savePostponedCharData LastElemCloseTag
-                                  unskipIdent
+                                  unskipIndent
                                   print' $ showElement x
                                   setLastElem LastElemCloseTag
     
@@ -688,11 +688,11 @@ printElemStrip e = do
       
 
   where
-    conditionalIdentMore = do
+    conditionalIndentMore = do
       lastElem' <- getLastElem
-      skippedIdent' <- getSkippedIdent
-      unless (lastElem' /= LastElemChars && skippedIdent' == SkippedNothing) skipIdent
+      skippedIndent' <- getSkippedIndent
+      unless (lastElem' /= LastElemChars && skippedIndent' == SkippedNothing) skipIndent
         
-    conditionalSkipIdentSimply = do
+    conditionalSkipIndentSimply = do
       lastElem' <- getLastElem
-      when (lastElem' == LastElemChars) skipIdentSimply
+      when (lastElem' == LastElemChars) skipIndentSimply

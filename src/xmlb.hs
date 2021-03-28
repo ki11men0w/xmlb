@@ -21,8 +21,8 @@ programVersion :: String
 programVersion =
   showVersion version ++ " (haskell)"
 
-defaultSpaceIdent :: Int
-defaultSpaceIdent = 3
+defaultSpaceIndent :: Int
+defaultSpaceIndent = 3
 
 
 -- | Флаги коммандной строки
@@ -53,8 +53,8 @@ opts' = getProgName >>= \programName -> return $
                   &= typ  "ENC",
                 spaces =
                   def
-                  &= help ("Use this number of spaces instead of tabs for identation (default is " ++ show defaultSpaceIdent ++ ")")
-                  &= opt (show defaultSpaceIdent),
+                  &= help ("Use this number of spaces instead of tabs for indentation (default is " ++ show defaultSpaceIndent ++ ")")
+                  &= opt (show defaultSpaceIndent),
                 strip =
                   def
                   &= help "Strip all insignificant spaces instead of making XML human readable",
@@ -134,9 +134,9 @@ processOneSource opts inFileName = do
         _
          | legacy opts -> ModeLegacy
          | strip opts  -> ModeStrip
-         | otherwise   -> ModeBeautify {identString = identString'}
+         | otherwise   -> ModeBeautify {indentString = indentString'}
       where
-        identString' =
+        indentString' =
           case spaces opts of
             Just i -> replicate i ' '
             _      -> "\t"
