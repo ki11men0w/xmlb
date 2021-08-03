@@ -137,6 +137,18 @@ spec = do
           assumeConversionCorrect resourceFile_test_strip resourceFile_test $
             action []
 
+      context ("With file " ++ resourceFile_test_significant_whitespaces) $ do
+
+        describe "Test significant whitespaces conversion" $ do
+
+          it "with default parameters" $ do
+            assumeConversionCorrect resourceFile_test_significant_whitespaces resourceFile_test_significant_whitespaces_b $
+              action []
+
+          it "with --strip" $ do
+            assumeConversionCorrect resourceFile_test_significant_whitespaces resourceFile_test_significant_whitespaces_s $
+              action ["--strip"]
+
     context ("Checking xml header rendering") $ do
       context("with file " ++ resourceFile_header_no_attr) $ do
         it ("without strip") $

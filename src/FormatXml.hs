@@ -461,9 +461,13 @@ savePostponedCharData next = do
   unless (null toPrint) $ do
     print' $ showElement $ SaxCharData toPrint
     setLastElem LastElemChars
-    
-  put $ st {postponedCharData = []}
-  
+
+  clearPostponedCharData
+
+  where
+    clearPostponedCharData = do
+      st <- get
+      put $ st {postponedCharData = []}
 
 unwrapSaxElem :: SaxElementWrapper -> Maybe SaxElement
 unwrapSaxElem we =

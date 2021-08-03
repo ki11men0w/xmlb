@@ -37,6 +37,9 @@ data-files:
 - test/resources/test.spaces.xml
 - test/resources/test.strip.xml
 - test/resources/test.xml
+- test/resources/test.significant-witespaces.xml
+- test/resources/test.significant-witespaces.beauty.xml
+- test/resources/test.significant-witespaces.strip.xml
 
 #extra-tmp-files:
 #- .tests-data.tmp

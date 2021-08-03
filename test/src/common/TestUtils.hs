@@ -32,6 +32,10 @@ resourceFile_header_bencoding = "header.bencoding.xml"
 resourceFile_header_bencoding_beauty = "header.bencoding.beauty.xml"
 resourceFile_header_bencoding_strip = "header.bencoding.strip.xml"
 
+resourceFile_test_significant_whitespaces = "test.significant-witespaces.xml"
+resourceFile_test_significant_whitespaces_b = "test.significant-witespaces.beauty.xml"
+resourceFile_test_significant_whitespaces_s = "test.significant-witespaces.strip.xml"
+
 trim :: String -> String 
 trim = dropWhile isSpace . dropWhileEnd isSpace
   where
