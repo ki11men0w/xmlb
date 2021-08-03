@@ -346,7 +346,7 @@ showElement (SaxProcessingInstruction (target, value)) =  "<?" ++ target ++ " " 
 showElement (SaxElementOpen name attrs)                =  "<"  ++ name ++ showAttributes attrs ++ ">"
 showElement (SaxElementClose name)                     =  "</" ++ name ++ ">"
 showElement (SaxElementTag name attrs)                 =  "<"  ++ name ++ showAttributes attrs ++ "/>"
-showElement (SaxCharData s)                            =  formatCharData . escapeCharacterData $ s
+showElement (SaxCharData s)                            =  normalizeNewLines . formatCharData . escapeCharacterData $ s
 showElement (SaxComment a)                             =  "<!--" ++ a ++ "-->"
 showElement (SaxReference (RefEntity name))            =  "&" ++ name ++ ";"
 showElement (SaxReference (RefChar c))                 =  "&#" ++ show c ++ ";"
@@ -696,3 +696,29 @@ printElemStrip e = do
     conditionalSkipIndentSimply = do
       lastElem' <- getLastElem
       when (lastElem' == LastElemChars) skipIndentSimply
+
+
+-- | Заменяет все символы переносов строк на канонические "\r\n"
+normalizeNewLines :: String -> String
+normalizeNewLines s =
+    concat . reverse . mk $ foldl f ('a', []) s
+    where
+      mkNext :: Char -> Char -> (Char, String)
+      mkNext '\r' '\n' = ('a', eol)
+      mkNext '\n' '\r' = ('a', eol)
+      mkNext '\n' '\n' = ('\n', eol)
+      mkNext '\r' '\r' = ('\r', eol)
+      mkNext '\n' c    = ('a', eol <> [c])
+      mkNext '\r' c    = ('a', eol <> [c])
+      mkNext _   '\n'  = ('\n', "")
+      mkNext _   '\r'  = ('\r', "")
+      mkNext _    c    = ('a', [c])
+
+      f :: (Char, [String]) -> Char -> (Char, [String])
+      f (p,a) c =
+          let (p', a') = mkNext p c
+          in (p', a':a)
+
+      mk ('\n', a) = eol:a
+      mk ('\r', a) = eol:a
+      mk (_,    a) = a
